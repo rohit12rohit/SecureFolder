@@ -1,0 +1,74 @@
+package com.example.securefolder.ui.login;
+
+import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.content.Context;
+import android.content.Intent;
+import android.os.Bundle;
+import android.widget.Button;
+import android.widget.TextView;
+import android.widget.Toast;
+import androidx.appcompat.app.AppCompatActivity;
+import com.example.securefolder.MainActivity;
+import com.example.securefolder.R;
+import com.example.securefolder.utils.AppPreferences;
+import com.example.securefolder.utils.SecurityUtils;
+import java.io.File;
+import java.io.FileWriter;
+
+public class RecoveryCodeActivity extends AppCompatActivity {
+
+    private String recoveryCode;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_recovery_code);
+
+        TextView tvCode = findViewById(R.id.tvRecoveryCode);
+        Button btnCopy = findViewById(R.id.btnCopy);
+        Button btnSave = findViewById(R.id.btnSaveFile);
+        Button btnFinish = findViewById(R.id.btnFinish);
+
+        // Generate Code
+        recoveryCode = SecurityUtils.generateRecoveryCode();
+        tvCode.setText(recoveryCode);
+
+        // Copy Logic
+        btnCopy.setOnClickListener(v -> {
+            ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+            ClipData clip = ClipData.newPlainText("Recovery Code", recoveryCode);
+            clipboard.setPrimaryClip(clip);
+            Toast.makeText(this, "Copied to clipboard", Toast.LENGTH_SHORT).show();
+        });
+
+        // Save File Logic
+        btnSave.setOnClickListener(v -> saveCodeToFile());
+
+        // Finish Logic
+        btnFinish.setOnClickListener(v -> {
+            // Mark setup as done
+            new AppPreferences(this).setSetupDone(true);
+
+            // Go to Main (which will route to Home/Login)
+            Intent intent = new Intent(this, MainActivity.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK | Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(intent);
+        });
+    }
+
+    private void saveCodeToFile() {
+        try {
+            // Save to app-specific external storage (does not require permissions)
+            File file = new File(getExternalFilesDir(null), "SecureFolder-Recovery.txt");
+            FileWriter writer = new FileWriter(file);
+            writer.write("Secure Folder Recovery Code:\n" + recoveryCode);
+            writer.flush();
+            writer.close();
+            Toast.makeText(this, "Saved to: " + file.getAbsolutePath(), Toast.LENGTH_LONG).show();
+        } catch (Exception e) {
+            Toast.makeText(this, "Error saving file", Toast.LENGTH_SHORT).show();
+            e.printStackTrace();
+        }
+    }
+}

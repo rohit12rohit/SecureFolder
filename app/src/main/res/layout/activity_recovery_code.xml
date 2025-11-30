@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/background"
+    android:orientation="vertical"
+    android:padding="24dp"
+    android:gravity="center">
+
+    <ImageView
+        android:layout_width="64dp"
+        android:layout_height="64dp"
+        android:src="@android:drawable/ic_dialog_alert"
+        android:layout_marginBottom="16dp"
+        android:contentDescription="Warning" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="IMPORTANT"
+        android:textColor="@color/error"
+        android:textSize="24sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="If you lose your password, this code is the ONLY way to recover your data. Save it somewhere safe."
+        android:gravity="center"
+        android:textSize="16sp" />
+
+    <TextView
+        android:id="@+id/tvRecoveryCode"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="32dp"
+        android:layout_marginBottom="32dp"
+        android:background="#E0E0E0"
+        android:fontFamily="monospace"
+        android:padding="16dp"
+        android:text="XXXX-XXXX-XXXX-XXXX"
+        android:textAlignment="center"
+        android:textColor="@color/black"
+        android:textSize="18sp"
+        android:textStyle="bold" />
+
+    <Button
+        android:id="@+id/btnCopy"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Copy to Clipboard"
+        style="@style/Widget.Material3.Button.OutlinedButton"/>
+
+    <Button
+        android:id="@+id/btnSaveFile"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Save as .txt File"
+        android:layout_marginTop="8dp"
+        style="@style/Widget.Material3.Button.OutlinedButton"/>
+
+    <Button
+        android:id="@+id/btnFinish"
+        android:layout_width="match_parent"
+        android:layout_height="60dp"
+        android:layout_marginTop="32dp"
+        android:backgroundTint="@color/primary"
+        android:text="I Have Saved It" />
+
+</LinearLayout>
