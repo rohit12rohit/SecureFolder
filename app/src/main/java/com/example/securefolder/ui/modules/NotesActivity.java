@@ -62,7 +62,7 @@ public class NotesActivity extends AppCompatActivity {
 
     private void loadNotes() {
         noteList.clear();
-        Cursor cursor = dbHelper.getAllNotes();
+        Cursor cursor = dbHelper.getAllNotes(true);
         if (cursor != null && cursor.moveToFirst()) {
             do {
                 int id = cursor.getInt(cursor.getColumnIndexOrThrow(DatabaseHelper.COL_ID));

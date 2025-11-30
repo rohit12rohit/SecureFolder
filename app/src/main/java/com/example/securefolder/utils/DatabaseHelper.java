@@ -9,7 +9,7 @@ import android.database.sqlite.SQLiteOpenHelper;
 public class DatabaseHelper extends SQLiteOpenHelper {
 
     private static final String DB_NAME = "SecureVault.db";
-    private static final int DB_VERSION = 4; // Upgrade version
+    private static final int DB_VERSION = 4;
 
     // Table: Notes
     public static final String TABLE_NOTES = "notes";
@@ -25,11 +25,11 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     public static final String COL_USERNAME = "username";
     public static final String COL_PASSWORD = "password";
 
-    // Table: Files (Photos/Videos) - NEW
+    // Table: Files (Photos/Videos)
     public static final String TABLE_FILES = "files";
     public static final String COL_FILE_TYPE = "type"; // "PHOTO" or "VIDEO"
-    public static final String COL_ENC_NAME = "enc_name"; // e.g. IMG_123.enc
-    public static final String COL_ORIG_PATH = "orig_path"; // e.g. /DCIM/Camera/IMG_1.jpg
+    public static final String COL_ENC_NAME = "enc_name";
+    public static final String COL_ORIG_PATH = "orig_path";
 
     public DatabaseHelper(Context context) {
         super(context, DB_NAME, null, DB_VERSION);
@@ -37,7 +37,6 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 
     @Override
     public void onCreate(SQLiteDatabase db) {
-        // Notes
         db.execSQL("CREATE TABLE " + TABLE_NOTES + " (" +
                 COL_ID + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
                 COL_TITLE + " TEXT, " +
@@ -45,7 +44,6 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                 COL_TIMESTAMP + " INTEGER, " +
                 COL_IS_DELETED + " INTEGER DEFAULT 0)");
 
-        // Passwords
         db.execSQL("CREATE TABLE " + TABLE_PASSWORDS + " (" +
                 COL_ID + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
                 COL_APP_NAME + " TEXT, " +
@@ -54,7 +52,6 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                 COL_TIMESTAMP + " INTEGER, " +
                 COL_IS_DELETED + " INTEGER DEFAULT 0)");
 
-        // Files (New)
         db.execSQL("CREATE TABLE " + TABLE_FILES + " (" +
                 COL_ID + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
                 COL_FILE_TYPE + " TEXT, " +
@@ -72,7 +69,19 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         onCreate(db);
     }
 
-    // --- FILES OPERATIONS (NEW) ---
+    // --- HELPER FOR IDS ---
+    public int getFileId(String encName) {
+        SQLiteDatabase db = this.getReadableDatabase();
+        Cursor cursor = db.rawQuery("SELECT " + COL_ID + " FROM " + TABLE_FILES + " WHERE " + COL_ENC_NAME + "=?", new String[]{encName});
+        int id = -1;
+        if (cursor != null) {
+            if (cursor.moveToFirst()) id = cursor.getInt(0);
+            cursor.close();
+        }
+        return id;
+    }
+
+    // --- FILES OPERATIONS ---
     public void addFile(String type, String encName, String origPath) {
         SQLiteDatabase db = this.getWritableDatabase();
         ContentValues values = new ContentValues();
@@ -114,7 +123,6 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         db.close();
     }
 
-    // Deletes record from DB (Called after physical file is deleted)
     public void deleteFileRecordPermanently(int id) {
         SQLiteDatabase db = this.getWritableDatabase();
         db.delete(TABLE_FILES, COL_ID + "=?", new String[]{String.valueOf(id)});

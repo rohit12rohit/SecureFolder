@@ -58,7 +58,7 @@ public class PasswordsActivity extends AppCompatActivity {
 
     private void loadPasswords() {
         passList.clear();
-        Cursor cursor = dbHelper.getAllPasswords();
+        Cursor cursor = dbHelper.getAllPasswords(true);
         if (cursor != null && cursor.moveToFirst()) {
             do {
                 int id = cursor.getInt(cursor.getColumnIndexOrThrow(DatabaseHelper.COL_ID));

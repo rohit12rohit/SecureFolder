@@ -1,43 +1,40 @@
 package com.example.securefolder.ui.modules;
 
-import android.content.Intent;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.media.MediaScannerConnection;
 import android.os.Bundle;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.Button;
-import android.widget.ImageView;
+import android.widget.MediaController;
 import android.widget.ProgressBar;
 import android.widget.Toast;
+import android.widget.VideoView;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import com.example.securefolder.R;
 import com.example.securefolder.utils.CryptoManager;
 import com.example.securefolder.utils.DatabaseHelper;
 import com.example.securefolder.utils.KeyManager;
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 
-public class PhotoViewerActivity extends AppCompatActivity {
+public class VideoViewerActivity extends AppCompatActivity {
 
     private DatabaseHelper dbHelper;
     private String currentFilePath;
     private String currentFileName;
+    private File tempFile;
     private int fileId = -1;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        // Prevent screenshots
         getWindow().setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE);
-        setContentView(R.layout.activity_photo_viewer);
+        setContentView(R.layout.activity_video_viewer);
 
         dbHelper = new DatabaseHelper(this);
-        ImageView imageView = findViewById(R.id.ivFullPhoto);
+        VideoView videoView = findViewById(R.id.videoView);
         ProgressBar progressBar = findViewById(R.id.progressBar);
         Button btnUnlock = findViewById(R.id.btnUnlock);
         Button btnTrash = findViewById(R.id.btnTrash);
@@ -47,82 +44,77 @@ public class PhotoViewerActivity extends AppCompatActivity {
 
         if (currentFilePath == null) { finish(); return; }
 
-        // Get ID from DB for Trash operations
         fileId = dbHelper.getFileId(currentFileName);
 
-        // Decrypt and Show
+        // Decrypt to Temp File
         new Thread(() -> {
             try {
-                File file = new File(currentFilePath);
-                FileInputStream fis = new FileInputStream(file);
-                ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                File encryptedFile = new File(currentFilePath);
+                tempFile = File.createTempFile("PLAY", ".mp4", getCacheDir());
 
-                boolean success = CryptoManager.decrypt(KeyManager.getMasterKey(), fis, baos);
+                FileInputStream fis = new FileInputStream(encryptedFile);
+                FileOutputStream fos = new FileOutputStream(tempFile);
 
-                if (success) {
-                    byte[] imageData = baos.toByteArray();
-                    Bitmap bitmap = BitmapFactory.decodeByteArray(imageData, 0, imageData.length);
-                    runOnUiThread(() -> {
-                        progressBar.setVisibility(View.GONE);
-                        imageView.setImageBitmap(bitmap);
-                    });
-                }
+                boolean success = CryptoManager.decrypt(KeyManager.getMasterKey(), fis, fos);
+
+                runOnUiThread(() -> {
+                    progressBar.setVisibility(View.GONE);
+                    if (success) {
+                        MediaController mediaController = new MediaController(this);
+                        videoView.setMediaController(mediaController);
+                        videoView.setVideoPath(tempFile.getAbsolutePath());
+                        videoView.start();
+                    } else {
+                        Toast.makeText(this, "Decryption Failed", Toast.LENGTH_SHORT).show();
+                    }
+                });
+
             } catch (Exception e) {
                 e.printStackTrace();
                 runOnUiThread(this::finish);
             }
         }).start();
 
-        btnUnlock.setOnClickListener(v -> restorePhoto());
+        btnUnlock.setOnClickListener(v -> restoreVideo());
         btnTrash.setOnClickListener(v -> moveToTrash());
     }
 
     private void moveToTrash() {
         new AlertDialog.Builder(this)
                 .setTitle("Move to Trash?")
-                .setMessage("This file will be moved to Trash. You can restore it later.")
+                .setMessage("This video will be moved to Trash. You can restore it later.")
                 .setPositiveButton("Delete", (dialog, which) -> {
                     if (fileId != -1) {
                         dbHelper.setFileDeleted(fileId, true);
                         Toast.makeText(this, "Moved to Trash", Toast.LENGTH_SHORT).show();
-                        finish(); // Close viewer
+                        finish();
                     }
                 })
                 .setNegativeButton("Cancel", null)
                 .show();
     }
 
-    private void restorePhoto() {
+    private void restoreVideo() {
         new Thread(() -> {
             try {
-                // 1. Get Original Path from DB
                 String originalPath = dbHelper.getOriginalPath(currentFileName);
                 if (originalPath == null || originalPath.equals("Unknown_Location")) {
-                    File picturesDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_PICTURES);
-                    originalPath = new File(picturesDir, "Restored_" + currentFileName.replace(".enc", ".jpg")).getAbsolutePath();
+                    File moviesDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_MOVIES);
+                    originalPath = new File(moviesDir, "Restored_" + currentFileName.replace(".enc", ".mp4")).getAbsolutePath();
                 }
 
                 File destFile = new File(originalPath);
                 File parent = destFile.getParentFile();
                 if (parent != null && !parent.exists()) parent.mkdirs();
 
-                // 2. Decrypt to Destination
                 FileInputStream fis = new FileInputStream(currentFilePath);
                 FileOutputStream fos = new FileOutputStream(destFile);
                 boolean success = CryptoManager.decrypt(KeyManager.getMasterKey(), fis, fos);
 
                 if (success) {
-                    // 3. Delete from Vault (Disk)
                     new File(currentFilePath).delete();
-
-                    // 4. Delete from DB (Permanently removed from app)
-                    if (fileId != -1) {
-                        dbHelper.deleteFileRecordPermanently(fileId);
-                    }
-
-                    // 5. Refresh Gallery so it appears immediately
+                    if (fileId != -1) dbHelper.deleteFileRecordPermanently(fileId);
                     MediaScannerConnection.scanFile(this, new String[]{destFile.getAbsolutePath()}, null, null);
-
                     runOnUiThread(() -> {
                         Toast.makeText(this, "Restored to: " + destFile.getAbsolutePath(), Toast.LENGTH_LONG).show();
                         finish();
@@ -130,11 +122,17 @@ public class PhotoViewerActivity extends AppCompatActivity {
                 } else {
                     runOnUiThread(() -> Toast.makeText(this, "Restore Failed", Toast.LENGTH_SHORT).show());
                 }
-
             } catch (Exception e) {
                 e.printStackTrace();
-                runOnUiThread(() -> Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show());
             }
         }).start();
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (tempFile != null && tempFile.exists()) {
+            tempFile.delete(); // Secure delete temp file
+        }
     }
 }
