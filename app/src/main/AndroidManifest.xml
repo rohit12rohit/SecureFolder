@@ -36,9 +36,15 @@
         <activity android:name=".ui.modules.PhotosActivity" />
         <activity android:name=".ui.modules.PhotoViewerActivity" />
         <activity android:name=".ui.modules.VideosActivity" />
+        <activity android:name=".ui.modules.VideoViewerActivity" />
         <activity android:name=".ui.modules.NotesActivity" />
-        <activity android:name=".ui.modules.NoteEditorActivity" /> <activity android:name=".ui.modules.PasswordsActivity" />
-        <activity android:name=".ui.modules.PasswordEditorActivity" /> <activity android:name=".ui.modules.SettingsActivity" />
+        <activity android:name=".ui.modules.NoteEditorActivity" />
+        <activity android:name=".ui.modules.PasswordsActivity" />
+        <activity android:name=".ui.modules.PasswordEditorActivity" />
+        <activity android:name=".ui.modules.SettingsActivity" />
+        <activity android:name=".ui.modules.TrashActivity" />
+        <activity android:name=".ui.modules.DocumentsActivity" />
+        <activity android:name=".ui.modules.DocumentViewerActivity" />
 
     </application>
 </manifest>
