@@ -32,9 +32,15 @@ public class LoginActivity extends AppCompatActivity {
     private void attemptLogin() {
         String inputPass = etPassword.getText().toString();
 
+        if (inputPass.isEmpty()) {
+            etPassword.setError("Enter Password");
+            return;
+        }
+
         String storedHash = appPreferences.getPasswordHash();
         String storedSalt = appPreferences.getPasswordSalt();
 
+        // Check password against stored hash
         String inputHash = SecurityUtils.hashPassword(inputPass, storedSalt);
 
         if (storedHash != null && storedHash.equals(inputHash)) {
@@ -42,6 +48,7 @@ public class LoginActivity extends AppCompatActivity {
             appPreferences.resetFailedAttempts();
 
             // 2. GENERATE MASTER KEY FOR SESSION (Important!)
+            // This allows us to decrypt files during this session
             KeyManager.generateMasterKey(this, inputPass);
 
             Toast.makeText(this, "Welcome back!", Toast.LENGTH_SHORT).show();

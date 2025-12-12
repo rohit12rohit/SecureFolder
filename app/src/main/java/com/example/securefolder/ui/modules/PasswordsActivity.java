@@ -12,7 +12,9 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import com.example.securefolder.R;
+import com.example.securefolder.utils.CryptoManager;
 import com.example.securefolder.utils.DatabaseHelper;
+import com.example.securefolder.utils.KeyManager;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -40,6 +42,11 @@ public class PasswordsActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_passwords);
 
+        if (KeyManager.getMasterKey() == null) {
+            finish();
+            return;
+        }
+
         rv = findViewById(R.id.rvPasswords);
         rv.setLayoutManager(new LinearLayoutManager(this));
 
@@ -58,14 +65,21 @@ public class PasswordsActivity extends AppCompatActivity {
 
     private void loadPasswords() {
         passList.clear();
-        Cursor cursor = dbHelper.getAllPasswords(true);
+        // Use 'false' to show ACTIVE passwords (not deleted)
+        Cursor cursor = dbHelper.getAllPasswords(false);
         if (cursor != null && cursor.moveToFirst()) {
             do {
                 int id = cursor.getInt(cursor.getColumnIndexOrThrow(DatabaseHelper.COL_ID));
-                String app = cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.COL_APP_NAME));
-                String user = cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.COL_USERNAME));
-                String pass = cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.COL_PASSWORD));
+                String encApp = cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.COL_APP_NAME));
+                String encUser = cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.COL_USERNAME));
+                String encPass = cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.COL_PASSWORD));
                 long time = cursor.getLong(cursor.getColumnIndexOrThrow(DatabaseHelper.COL_TIMESTAMP));
+
+                // DECRYPT HERE
+                String app = CryptoManager.decryptString(encApp);
+                String user = CryptoManager.decryptString(encUser);
+                String pass = CryptoManager.decryptString(encPass);
+
                 passList.add(new PassItem(id, app, user, pass, time));
             } while (cursor.moveToNext());
             cursor.close();

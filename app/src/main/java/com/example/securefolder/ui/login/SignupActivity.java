@@ -3,9 +3,7 @@ package com.example.securefolder.ui.login;
 import android.content.Intent;
 import android.os.Bundle;
 import android.widget.Button;
-import android.widget.RadioButton;
 import android.widget.RadioGroup;
-import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 import com.example.securefolder.R;
 import com.example.securefolder.utils.AppPreferences;
@@ -36,6 +34,11 @@ public class SignupActivity extends AppCompatActivity {
         String pass = etPassword.getText().toString();
         String confirm = etConfirmPassword.getText().toString();
 
+        if (pass.isEmpty()) {
+            etPassword.setError("Password required");
+            return;
+        }
+
         if (!pass.equals(confirm)) {
             etConfirmPassword.setError("Passwords do not match");
             return;
@@ -56,11 +59,13 @@ public class SignupActivity extends AppCompatActivity {
         // Save Credentials
         String salt = SecurityUtils.generateSalt();
         String hash = SecurityUtils.hashPassword(pass, salt);
-        appPreferences.savePasswordData(hash, salt);
 
-        // Move to Recovery Code Screen
-        Intent intent = new Intent(this, RecoveryCodeActivity.class);
-        startActivity(intent);
-        finish();
+        if (hash != null) {
+            appPreferences.savePasswordData(hash, salt);
+            // Move to Recovery Code Screen
+            Intent intent = new Intent(this, RecoveryCodeActivity.class);
+            startActivity(intent);
+            finish();
+        }
     }
 }

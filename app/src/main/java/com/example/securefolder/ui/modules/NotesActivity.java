@@ -12,7 +12,9 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import com.example.securefolder.R;
+import com.example.securefolder.utils.CryptoManager;
 import com.example.securefolder.utils.DatabaseHelper;
+import com.example.securefolder.utils.KeyManager;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -44,6 +46,11 @@ public class NotesActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_notes);
 
+        if (KeyManager.getMasterKey() == null) {
+            finish();
+            return;
+        }
+
         rv = findViewById(R.id.rvNotes);
         rv.setLayoutManager(new LinearLayoutManager(this));
 
@@ -62,13 +69,19 @@ public class NotesActivity extends AppCompatActivity {
 
     private void loadNotes() {
         noteList.clear();
-        Cursor cursor = dbHelper.getAllNotes(true);
+        // showDeleted = false (Active notes)
+        Cursor cursor = dbHelper.getAllNotes(false);
         if (cursor != null && cursor.moveToFirst()) {
             do {
                 int id = cursor.getInt(cursor.getColumnIndexOrThrow(DatabaseHelper.COL_ID));
-                String title = cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.COL_TITLE));
-                String content = cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.COL_CONTENT));
+                String encTitle = cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.COL_TITLE));
+                String encContent = cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.COL_CONTENT));
                 long time = cursor.getLong(cursor.getColumnIndexOrThrow(DatabaseHelper.COL_TIMESTAMP));
+
+                // DECRYPT DATA
+                String title = CryptoManager.decryptString(encTitle);
+                String content = CryptoManager.decryptString(encContent);
+
                 noteList.add(new NoteItem(id, title, content, time));
             } while (cursor.moveToNext());
             cursor.close();
@@ -85,7 +98,6 @@ public class NotesActivity extends AppCompatActivity {
 
         @Override
         public ViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
-            // Create a layout programmatically to show Title AND Date
             LinearLayout layout = new LinearLayout(parent.getContext());
             layout.setOrientation(LinearLayout.VERTICAL);
             layout.setPadding(32, 24, 32, 24);
@@ -95,12 +107,12 @@ public class NotesActivity extends AppCompatActivity {
 
             TextView tvTitle = new TextView(parent.getContext());
             tvTitle.setTextSize(18);
-            tvTitle.setTextColor(Color.BLACK); // Force Black
+            tvTitle.setTextColor(Color.BLACK);
             tvTitle.setTypeface(null, android.graphics.Typeface.BOLD);
 
             TextView tvDate = new TextView(parent.getContext());
             tvDate.setTextSize(12);
-            tvDate.setTextColor(Color.GRAY); // Date in Gray
+            tvDate.setTextColor(Color.GRAY);
 
             layout.addView(tvTitle);
             layout.addView(tvDate);

@@ -6,7 +6,9 @@ import android.widget.EditText;
 import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 import com.example.securefolder.R;
+import com.example.securefolder.utils.CryptoManager;
 import com.example.securefolder.utils.DatabaseHelper;
+import com.example.securefolder.utils.KeyManager;
 
 public class NoteEditorActivity extends AppCompatActivity {
 
@@ -16,6 +18,13 @@ public class NoteEditorActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_note_editor);
+
+        // Safety check: ensure we have the master key
+        if (KeyManager.getMasterKey() == null) {
+            Toast.makeText(this, "Session expired. Please login again.", Toast.LENGTH_SHORT).show();
+            finish();
+            return;
+        }
 
         EditText etTitle = findViewById(R.id.etNoteTitle);
         EditText etContent = findViewById(R.id.etNoteContent);
@@ -38,13 +47,22 @@ public class NoteEditorActivity extends AppCompatActivity {
                 return;
             }
 
+            // ENCRYPT DATA
+            String encTitle = CryptoManager.encryptString(title);
+            String encContent = CryptoManager.encryptString(content);
+
+            if (encTitle == null || encContent == null) {
+                Toast.makeText(this, "Encryption Failed!", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
             DatabaseHelper db = new DatabaseHelper(this);
             if (existingId == -1) {
-                db.addNote(title, content);
-                Toast.makeText(this, "Note Created", Toast.LENGTH_SHORT).show();
+                db.addNote(encTitle, encContent);
+                Toast.makeText(this, "Note Encrypted & Saved", Toast.LENGTH_SHORT).show();
             } else {
-                db.updateNote(existingId, title, content);
-                Toast.makeText(this, "Note Updated", Toast.LENGTH_SHORT).show();
+                db.updateNote(existingId, encTitle, encContent);
+                Toast.makeText(this, "Note Encrypted & Updated", Toast.LENGTH_SHORT).show();
             }
 
             finish();

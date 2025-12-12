@@ -50,7 +50,7 @@ public class RecoveryCodeActivity extends AppCompatActivity {
             // Mark setup as done
             new AppPreferences(this).setSetupDone(true);
 
-            // Go to Main (which will route to Home/Login)
+            // Go to Main (which will route to Login)
             Intent intent = new Intent(this, MainActivity.class);
             intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK | Intent.FLAG_ACTIVITY_NEW_TASK);
             startActivity(intent);
@@ -59,10 +59,12 @@ public class RecoveryCodeActivity extends AppCompatActivity {
 
     private void saveCodeToFile() {
         try {
-            // Save to app-specific external storage (does not require permissions)
+            // Save to app-specific external storage (does not require special permissions)
             File file = new File(getExternalFilesDir(null), "SecureFolder-Recovery.txt");
             FileWriter writer = new FileWriter(file);
-            writer.write("Secure Folder Recovery Code:\n" + recoveryCode);
+            writer.write("IMPORTANT: SECURE FOLDER RECOVERY CODE\n");
+            writer.write("Keep this safe. If you lose your password, you lose your data.\n\n");
+            writer.write("Code: " + recoveryCode);
             writer.flush();
             writer.close();
             Toast.makeText(this, "Saved to: " + file.getAbsolutePath(), Toast.LENGTH_LONG).show();

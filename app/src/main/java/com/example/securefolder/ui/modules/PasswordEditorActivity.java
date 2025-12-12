@@ -6,7 +6,9 @@ import android.widget.EditText;
 import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 import com.example.securefolder.R;
+import com.example.securefolder.utils.CryptoManager;
 import com.example.securefolder.utils.DatabaseHelper;
+import com.example.securefolder.utils.KeyManager;
 
 public class PasswordEditorActivity extends AppCompatActivity {
 
@@ -17,12 +19,16 @@ public class PasswordEditorActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_password_editor);
 
+        if (KeyManager.getMasterKey() == null) {
+            finish();
+            return;
+        }
+
         EditText etApp = findViewById(R.id.etAppName);
         EditText etUser = findViewById(R.id.etUsername);
         EditText etPass = findViewById(R.id.etPasswordValue);
         Button btnSave = findViewById(R.id.btnSavePassword);
 
-        // Check if editing
         if (getIntent().hasExtra("ID")) {
             existingId = getIntent().getIntExtra("ID", -1);
             etApp.setText(getIntent().getStringExtra("APP"));
@@ -41,13 +47,23 @@ public class PasswordEditorActivity extends AppCompatActivity {
                 return;
             }
 
+            // ENCRYPT ALL FIELDS
+            String encApp = CryptoManager.encryptString(app);
+            String encUser = CryptoManager.encryptString(user);
+            String encPass = CryptoManager.encryptString(pass);
+
+            if (encApp == null || encPass == null) {
+                Toast.makeText(this, "Encryption Error", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
             DatabaseHelper db = new DatabaseHelper(this);
             if (existingId == -1) {
-                db.addPassword(app, user, pass);
-                Toast.makeText(this, "Saved", Toast.LENGTH_SHORT).show();
+                db.addPassword(encApp, encUser, encPass);
+                Toast.makeText(this, "Saved Securely", Toast.LENGTH_SHORT).show();
             } else {
-                db.updatePassword(existingId, app, user, pass);
-                Toast.makeText(this, "Updated", Toast.LENGTH_SHORT).show();
+                db.updatePassword(existingId, encApp, encUser, encPass);
+                Toast.makeText(this, "Updated Securely", Toast.LENGTH_SHORT).show();
             }
 
             finish();

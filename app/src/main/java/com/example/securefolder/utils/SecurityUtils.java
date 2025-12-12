@@ -1,8 +1,10 @@
 package com.example.securefolder.utils;
 
 import android.util.Base64;
-import java.security.MessageDigest;
 import java.security.SecureRandom;
+import java.security.spec.KeySpec;
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.PBEKeySpec;
 
 /**
  * SecurityUtils
@@ -15,14 +17,18 @@ public class SecurityUtils {
     public static final int POLICY_RECOMMENDED = 1;
     public static final int POLICY_STRONG = 2;
 
+    private static final int HASH_ITERATIONS = 10000;
+    private static final int HASH_KEY_LENGTH = 256;
+
     /**
-     * Hashes a password using SHA-256 with a salt.
+     * Hashes a password using PBKDF2 (Secure) instead of SHA-256 (Fast/Weak).
      */
-    public static String hashPassword(String password, String salt) {
+    public static String hashPassword(String password, String saltStr) {
         try {
-            String input = password + salt;
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(input.getBytes("UTF-8"));
+            byte[] salt = Base64.decode(saltStr, Base64.NO_WRAP);
+            KeySpec spec = new PBEKeySpec(password.toCharArray(), salt, HASH_ITERATIONS, HASH_KEY_LENGTH);
+            SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
+            byte[] hash = factory.generateSecret(spec).getEncoded();
             return Base64.encodeToString(hash, Base64.NO_WRAP);
         } catch (Exception e) {
             e.printStackTrace();
