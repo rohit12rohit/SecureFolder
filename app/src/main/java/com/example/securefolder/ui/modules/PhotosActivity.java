@@ -33,6 +33,7 @@ import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 public class PhotosActivity extends AppCompatActivity implements PhotosAdapter.OnPhotoActionListener {
 
@@ -79,8 +80,7 @@ public class PhotosActivity extends AppCompatActivity implements PhotosAdapter.O
         recyclerView = findViewById(R.id.recyclerView);
         recyclerView.setLayoutManager(new GridLayoutManager(this, 3));
 
-        // Initialize Adapter with 'this' as listener
-        adapter = new PhotosAdapter(photoFiles, this);
+        adapter = new PhotosAdapter(photoFiles, dbHelper, this);
         recyclerView.setAdapter(adapter);
 
         fab.setOnClickListener(v -> {
@@ -88,7 +88,6 @@ public class PhotosActivity extends AppCompatActivity implements PhotosAdapter.O
             pickImageLauncher.launch(intent);
         });
 
-        // Multi-Select Buttons
         findViewById(R.id.btnDeleteSelected).setOnClickListener(v -> deleteSelectedItems());
         findViewById(R.id.btnExportSelected).setOnClickListener(v -> exportSelectedItems());
 
@@ -126,7 +125,8 @@ public class PhotosActivity extends AppCompatActivity implements PhotosAdapter.O
                 .setMessage("These items will be moved to Trash.")
                 .setPositiveButton("Delete", (dialog, which) -> {
                     for (File f : selected) {
-                        int id = dbHelper.getFileId(f.getName());
+                        // Use System Name (UUID) to find ID
+                        int id = dbHelper.getFileIdBySystemName(f.getName());
                         if (id != -1) {
                             dbHelper.setFileDeleted(id, true);
                         }
@@ -150,15 +150,11 @@ public class PhotosActivity extends AppCompatActivity implements PhotosAdapter.O
 
             for (File src : selected) {
                 try {
-                    String origName = dbHelper.getOriginalPath(src.getName());
-                    if (origName == null || origName.equals("Unknown_Location")) {
-                        origName = "Export_" + src.getName().replace(".enc", ".jpg");
-                    } else {
-                        // Extract just filename from path
-                        origName = new File(origName).getName();
-                    }
+                    // Restore original name from DB
+                    String realName = dbHelper.getDisplayName(src.getName());
+                    if (realName == null || realName.equals("Unknown")) realName = "Export_" + System.currentTimeMillis() + ".jpg";
 
-                    File dest = new File(exportDir, "Restored_" + origName);
+                    File dest = new File(exportDir, "Restored_" + realName);
 
                     FileInputStream fis = new FileInputStream(src);
                     FileOutputStream fos = new FileOutputStream(dest);
@@ -180,7 +176,7 @@ public class PhotosActivity extends AppCompatActivity implements PhotosAdapter.O
         }).start();
     }
 
-    // --- EXISTING LOGIC ---
+    // --- IMPORT LOGIC (UUID FIX) ---
     private void handleImageSelection(Uri uri) {
         if (uri == null) return;
         loadingLayout.setVisibility(View.VISIBLE);
@@ -190,17 +186,22 @@ public class PhotosActivity extends AppCompatActivity implements PhotosAdapter.O
                 String originalPath = getRealPathFromURI(uri);
                 if (originalPath == null) originalPath = "Unknown_Location";
 
+                String originalName = getFileNameFromUri(uri);
+
+                // GENERATE RANDOM UUID (Invisible Vault)
+                String systemName = UUID.randomUUID().toString();
+
+                File outputFile = new File(vaultDir, systemName);
                 InputStream inputStream = getContentResolver().openInputStream(uri);
-                String fileName = "IMG_" + System.currentTimeMillis() + ".enc";
-                File outputFile = new File(vaultDir, fileName);
                 FileOutputStream outputStream = new FileOutputStream(outputFile);
 
                 boolean success = CryptoManager.encrypt(KeyManager.getMasterKey(), inputStream, outputStream);
 
                 if (success) {
-                    dbHelper.addFile("PHOTO", fileName, originalPath);
+                    // Save UUID (System Name) + Real Name (Display Name)
+                    dbHelper.addFile("PHOTO", systemName, originalName, originalPath);
 
-                    // Try to delete original
+                    // Delete Original
                     boolean isDeleted = false;
                     if (!originalPath.equals("Unknown_Location")) {
                         File original = new File(originalPath);
@@ -263,13 +264,28 @@ public class PhotosActivity extends AppCompatActivity implements PhotosAdapter.O
         return null;
     }
 
+    private String getFileNameFromUri(Uri uri) {
+        Cursor cursor = getContentResolver().query(uri, null, null, null, null);
+        if (cursor != null && cursor.moveToFirst()) {
+            int nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME);
+            if (nameIndex != -1) {
+                String name = cursor.getString(nameIndex);
+                cursor.close();
+                return name;
+            }
+            cursor.close();
+        }
+        return "Photo_" + System.currentTimeMillis();
+    }
+
     private void loadFilesFromDB() {
         photoFiles.clear();
         Cursor cursor = dbHelper.getActiveFiles("PHOTO");
         if (cursor != null && cursor.moveToFirst()) {
             do {
-                String fileName = cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.COL_ENC_NAME));
-                File file = new File(vaultDir, fileName);
+                // Get System Name (UUID) from DB
+                String sysName = cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.COL_SYSTEM_NAME));
+                File file = new File(vaultDir, sysName);
                 if (file.exists()) {
                     photoFiles.add(file);
                 }
@@ -282,11 +298,10 @@ public class PhotosActivity extends AppCompatActivity implements PhotosAdapter.O
     private void openPhotoViewer(File file) {
         Intent intent = new Intent(this, PhotoViewerActivity.class);
         intent.putExtra("FILE_PATH", file.getAbsolutePath());
-        intent.putExtra("FILE_NAME", file.getName());
+        intent.putExtra("FILE_NAME", file.getName()); // This is the UUID
         startActivity(intent);
     }
 
-    // Handle back button to cancel selection
     @Override
     public void onBackPressed() {
         if (adapter.getSelectedFiles().size() > 0) {

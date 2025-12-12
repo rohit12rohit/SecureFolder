@@ -3,25 +3,36 @@ package com.example.securefolder.ui.modules;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 import com.example.securefolder.R;
+import com.example.securefolder.utils.DatabaseHelper;
 import java.io.File;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public class VideosAdapter extends RecyclerView.Adapter<VideosAdapter.ViewHolder> {
 
     private final List<File> files;
-    private final OnVideoClickListener listener;
+    private final DatabaseHelper dbHelper;
+    private final OnVideoActionListener listener;
 
-    public interface OnVideoClickListener {
+    private boolean isSelectionMode = false;
+    private final Set<File> selectedFiles = new HashSet<>();
+
+    public interface OnVideoActionListener {
         void onVideoClick(File file);
+        void onSelectionModeChanged(boolean active, int count);
     }
 
-    public VideosAdapter(List<File> files, OnVideoClickListener listener) {
+    public VideosAdapter(List<File> files, DatabaseHelper dbHelper, OnVideoActionListener listener) {
         this.files = files;
+        this.dbHelper = dbHelper;
         this.listener = listener;
     }
 
@@ -35,23 +46,72 @@ public class VideosAdapter extends RecyclerView.Adapter<VideosAdapter.ViewHolder
     @Override
     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
         File file = files.get(position);
-        holder.tvName.setText("Video " + (position + 1));
-        holder.icon.setImageResource(R.drawable.ic_video); // Use the video icon we already have
-        holder.itemView.setOnClickListener(v -> listener.onVideoClick(file));
+
+        String displayName = dbHelper.getDisplayName(file.getName());
+        holder.tvName.setText(displayName);
+        holder.icon.setImageResource(R.drawable.ic_video);
+
+        if (selectedFiles.contains(file)) {
+            holder.overlay.setVisibility(View.VISIBLE);
+        } else {
+            holder.overlay.setVisibility(View.GONE);
+        }
+
+        holder.itemView.setOnClickListener(v -> {
+            if (isSelectionMode) {
+                toggleSelection(file);
+            } else {
+                listener.onVideoClick(file);
+            }
+        });
+
+        holder.itemView.setOnLongClickListener(v -> {
+            if (!isSelectionMode) {
+                isSelectionMode = true;
+                toggleSelection(file);
+                listener.onSelectionModeChanged(true, selectedFiles.size());
+                return true;
+            }
+            return false;
+        });
+    }
+
+    private void toggleSelection(File file) {
+        if (selectedFiles.contains(file)) selectedFiles.remove(file);
+        else selectedFiles.add(file);
+
+        if (selectedFiles.isEmpty()) isSelectionMode = false;
+
+        notifyDataSetChanged();
+        listener.onSelectionModeChanged(isSelectionMode, selectedFiles.size());
+    }
+
+    public void clearSelection() {
+        isSelectionMode = false;
+        selectedFiles.clear();
+        notifyDataSetChanged();
+        listener.onSelectionModeChanged(false, 0);
+    }
+
+    public List<File> getSelectedFiles() {
+        return new ArrayList<>(selectedFiles);
     }
 
     @Override
     public int getItemCount() {
         return files.size();
     }
+
     public static class ViewHolder extends RecyclerView.ViewHolder {
         TextView tvName;
         ImageView icon;
+        FrameLayout overlay;
 
         public ViewHolder(@NonNull View itemView) {
             super(itemView);
             tvName = itemView.findViewById(R.id.tvFileName);
             icon = itemView.findViewById(R.id.ivIcon);
+            overlay = itemView.findViewById(R.id.overlaySelection);
         }
     }
 }

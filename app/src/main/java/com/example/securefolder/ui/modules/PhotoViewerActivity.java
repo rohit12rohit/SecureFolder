@@ -1,10 +1,10 @@
 package com.example.securefolder.ui.modules;
 
-import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.media.MediaScannerConnection;
 import android.os.Bundle;
+import android.os.Environment;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.Button;
@@ -26,7 +26,7 @@ public class PhotoViewerActivity extends AppCompatActivity {
 
     private DatabaseHelper dbHelper;
     private String currentFilePath;
-    private String currentFileName;
+    private String currentFileName; // This is now the UUID (System Name)
     private int fileId = -1;
 
     @Override
@@ -47,8 +47,8 @@ public class PhotoViewerActivity extends AppCompatActivity {
 
         if (currentFilePath == null) { finish(); return; }
 
-        // Get ID from DB for Trash operations
-        fileId = dbHelper.getFileId(currentFileName);
+        // FIX: Use new method for UUID lookup
+        fileId = dbHelper.getFileIdBySystemName(currentFileName);
 
         // Decrypt and Show
         new Thread(() -> {
@@ -65,6 +65,11 @@ public class PhotoViewerActivity extends AppCompatActivity {
                     runOnUiThread(() -> {
                         progressBar.setVisibility(View.GONE);
                         imageView.setImageBitmap(bitmap);
+                    });
+                } else {
+                    runOnUiThread(() -> {
+                        Toast.makeText(this, "Decryption Failed", Toast.LENGTH_SHORT).show();
+                        finish();
                     });
                 }
             } catch (Exception e) {
@@ -95,16 +100,16 @@ public class PhotoViewerActivity extends AppCompatActivity {
     private void restorePhoto() {
         new Thread(() -> {
             try {
-                // 1. Get Original Path from DB
-                String originalPath = dbHelper.getOriginalPath(currentFileName);
-                if (originalPath == null || originalPath.equals("Unknown_Location")) {
-                    File picturesDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_PICTURES);
-                    originalPath = new File(picturesDir, "Restored_" + currentFileName.replace(".enc", ".jpg")).getAbsolutePath();
+                // 1. Get Real Name from DB (Since file on disk is just a UUID)
+                String realName = dbHelper.getDisplayName(currentFileName);
+                if (realName == null || realName.equals("Unknown")) {
+                    realName = "Restored_Img_" + System.currentTimeMillis() + ".jpg";
+                } else {
+                    realName = "Restored_" + realName;
                 }
 
-                File destFile = new File(originalPath);
-                File parent = destFile.getParentFile();
-                if (parent != null && !parent.exists()) parent.mkdirs();
+                File picturesDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES);
+                File destFile = new File(picturesDir, realName);
 
                 // 2. Decrypt to Destination
                 FileInputStream fis = new FileInputStream(currentFilePath);
@@ -115,16 +120,16 @@ public class PhotoViewerActivity extends AppCompatActivity {
                     // 3. Delete from Vault (Disk)
                     new File(currentFilePath).delete();
 
-                    // 4. Delete from DB (Permanently removed from app)
+                    // 4. Delete from DB (Permanently removed)
                     if (fileId != -1) {
                         dbHelper.deleteFileRecordPermanently(fileId);
                     }
 
-                    // 5. Refresh Gallery so it appears immediately
+                    // 5. Refresh Gallery
                     MediaScannerConnection.scanFile(this, new String[]{destFile.getAbsolutePath()}, null, null);
 
                     runOnUiThread(() -> {
-                        Toast.makeText(this, "Restored to: " + destFile.getAbsolutePath(), Toast.LENGTH_LONG).show();
+                        Toast.makeText(this, "Restored to Pictures: " + destFile.getName(), Toast.LENGTH_LONG).show();
                         finish();
                     });
                 } else {
