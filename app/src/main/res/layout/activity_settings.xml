@@ -4,16 +4,24 @@
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:padding="24dp"
-    android:background="@color/background">
+    android:background="?attr/colorSurface">
 
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="Settings"
-        android:textColor="@color/primary"
+        android:textColor="?attr/colorPrimary"
         android:textSize="28sp"
         android:textStyle="bold"
         android:layout_marginBottom="32dp"/>
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Security"
+        android:textStyle="bold"
+        android:textColor="?attr/colorSecondary"
+        android:layout_marginBottom="8dp"/>
 
     <Button
         android:id="@+id/btnChangePassword"
@@ -22,12 +30,28 @@
         android:text="Change Master Password"
         android:layout_marginBottom="16dp"/>
 
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Data Management"
+        android:textStyle="bold"
+        android:textColor="?attr/colorSecondary"
+        android:layout_marginBottom="8dp"/>
+
+    <Button
+        android:id="@+id/btnBackup"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Backup Data (Encrypted)"
+        android:backgroundTint="?attr/colorSecondary"
+        android:layout_marginBottom="8dp"/>
+
     <Button
         android:id="@+id/btnDeleteAll"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="Wipe All Data"
-        android:backgroundTint="@color/error"
+        android:backgroundTint="?attr/colorError"
         android:layout_marginBottom="16dp"/>
 
     <Button
@@ -44,6 +68,13 @@
         android:text="Version 1.0"
         android:textAlignment="center"
         android:layout_marginTop="32dp"
-        android:textColor="@color/black"/>
+        android:textColor="?android:attr/textColorPrimary"/>
+
+    <ProgressBar
+        android:id="@+id/progressBar"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:visibility="gone"/>
 
 </LinearLayout>

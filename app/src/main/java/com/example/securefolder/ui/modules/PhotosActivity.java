@@ -5,12 +5,16 @@ import android.app.AlertDialog;
 import android.app.PendingIntent;
 import android.content.Intent;
 import android.database.Cursor;
+import android.media.MediaScannerConnection;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
 import android.provider.MediaStore;
 import android.view.View;
+import android.widget.Button;
 import android.widget.LinearLayout;
+import android.widget.TextView;
 import android.widget.Toast;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.IntentSenderRequest;
@@ -22,18 +26,24 @@ import com.example.securefolder.R;
 import com.example.securefolder.utils.CryptoManager;
 import com.example.securefolder.utils.DatabaseHelper;
 import com.example.securefolder.utils.KeyManager;
+import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 
-public class PhotosActivity extends AppCompatActivity {
+public class PhotosActivity extends AppCompatActivity implements PhotosAdapter.OnPhotoActionListener {
 
     private RecyclerView recyclerView;
     private PhotosAdapter adapter;
     private List<File> photoFiles = new ArrayList<>();
     private LinearLayout loadingLayout;
+    private LinearLayout layoutSelection;
+    private TextView tvSelectionCount;
+    private FloatingActionButton fab;
+
     private File vaultDir;
     private DatabaseHelper dbHelper;
 
@@ -62,16 +72,25 @@ public class PhotosActivity extends AppCompatActivity {
 
         dbHelper = new DatabaseHelper(this);
         loadingLayout = findViewById(R.id.layoutLoading);
+        layoutSelection = findViewById(R.id.layoutSelection);
+        tvSelectionCount = findViewById(R.id.tvSelectionCount);
+        fab = findViewById(R.id.fabAdd);
+
         recyclerView = findViewById(R.id.recyclerView);
         recyclerView.setLayoutManager(new GridLayoutManager(this, 3));
 
-        adapter = new PhotosAdapter(photoFiles, this::openPhotoViewer);
+        // Initialize Adapter with 'this' as listener
+        adapter = new PhotosAdapter(photoFiles, this);
         recyclerView.setAdapter(adapter);
 
-        findViewById(R.id.fabAdd).setOnClickListener(v -> {
+        fab.setOnClickListener(v -> {
             Intent intent = new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
             pickImageLauncher.launch(intent);
         });
+
+        // Multi-Select Buttons
+        findViewById(R.id.btnDeleteSelected).setOnClickListener(v -> deleteSelectedItems());
+        findViewById(R.id.btnExportSelected).setOnClickListener(v -> exportSelectedItems());
 
         vaultDir = new File(getExternalFilesDir(null), "Vault/Photos");
         if (!vaultDir.exists()) vaultDir.mkdirs();
@@ -79,13 +98,95 @@ public class PhotosActivity extends AppCompatActivity {
         loadFilesFromDB();
     }
 
+    // --- ADAPTER CALLBACKS ---
+    @Override
+    public void onPhotoClick(File file) {
+        openPhotoViewer(file);
+    }
+
+    @Override
+    public void onSelectionModeChanged(boolean active, int count) {
+        if (active) {
+            layoutSelection.setVisibility(View.VISIBLE);
+            fab.setVisibility(View.GONE);
+            tvSelectionCount.setText(count + " Selected");
+        } else {
+            layoutSelection.setVisibility(View.GONE);
+            fab.setVisibility(View.VISIBLE);
+        }
+    }
+
+    // --- BATCH OPERATIONS ---
+    private void deleteSelectedItems() {
+        List<File> selected = adapter.getSelectedFiles();
+        if (selected.isEmpty()) return;
+
+        new AlertDialog.Builder(this)
+                .setTitle("Delete " + selected.size() + " items?")
+                .setMessage("These items will be moved to Trash.")
+                .setPositiveButton("Delete", (dialog, which) -> {
+                    for (File f : selected) {
+                        int id = dbHelper.getFileId(f.getName());
+                        if (id != -1) {
+                            dbHelper.setFileDeleted(id, true);
+                        }
+                    }
+                    adapter.clearSelection();
+                    loadFilesFromDB();
+                    Toast.makeText(this, "Moved to Trash", Toast.LENGTH_SHORT).show();
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private void exportSelectedItems() {
+        List<File> selected = adapter.getSelectedFiles();
+        if (selected.isEmpty()) return;
+
+        loadingLayout.setVisibility(View.VISIBLE);
+        new Thread(() -> {
+            int count = 0;
+            File exportDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+
+            for (File src : selected) {
+                try {
+                    String origName = dbHelper.getOriginalPath(src.getName());
+                    if (origName == null || origName.equals("Unknown_Location")) {
+                        origName = "Export_" + src.getName().replace(".enc", ".jpg");
+                    } else {
+                        // Extract just filename from path
+                        origName = new File(origName).getName();
+                    }
+
+                    File dest = new File(exportDir, "Restored_" + origName);
+
+                    FileInputStream fis = new FileInputStream(src);
+                    FileOutputStream fos = new FileOutputStream(dest);
+                    boolean success = CryptoManager.decrypt(KeyManager.getMasterKey(), fis, fos);
+
+                    if (success) {
+                        count++;
+                        MediaScannerConnection.scanFile(this, new String[]{dest.getAbsolutePath()}, null, null);
+                    }
+                } catch (Exception e) { e.printStackTrace(); }
+            }
+
+            final int finalCount = count;
+            runOnUiThread(() -> {
+                loadingLayout.setVisibility(View.GONE);
+                adapter.clearSelection();
+                Toast.makeText(this, "Exported " + finalCount + " files to Downloads", Toast.LENGTH_LONG).show();
+            });
+        }).start();
+    }
+
+    // --- EXISTING LOGIC ---
     private void handleImageSelection(Uri uri) {
         if (uri == null) return;
         loadingLayout.setVisibility(View.VISIBLE);
 
         new Thread(() -> {
             try {
-                // 1. Get Original Path (CRITICAL for Restore)
                 String originalPath = getRealPathFromURI(uri);
                 if (originalPath == null) originalPath = "Unknown_Location";
 
@@ -94,20 +195,17 @@ public class PhotosActivity extends AppCompatActivity {
                 File outputFile = new File(vaultDir, fileName);
                 FileOutputStream outputStream = new FileOutputStream(outputFile);
 
-                // 2. Encrypt
                 boolean success = CryptoManager.encrypt(KeyManager.getMasterKey(), inputStream, outputStream);
 
                 if (success) {
-                    // 3. Save info to DB
                     dbHelper.addFile("PHOTO", fileName, originalPath);
 
-                    // 4. Delete Original
+                    // Try to delete original
                     boolean isDeleted = false;
-                    if (originalPath != null && !originalPath.equals("Unknown_Location")) {
+                    if (!originalPath.equals("Unknown_Location")) {
                         File original = new File(originalPath);
                         if (original.exists()) isDeleted = original.delete();
                     }
-
                     if (!isDeleted) {
                         try {
                             int rows = getContentResolver().delete(uri, null, null);
@@ -182,12 +280,19 @@ public class PhotosActivity extends AppCompatActivity {
     }
 
     private void openPhotoViewer(File file) {
-        // Find ID from DB to handle trash
-        // For simple Viewer, just path is enough.
-        // But for Trash/Export, we need DB lookup.
         Intent intent = new Intent(this, PhotoViewerActivity.class);
         intent.putExtra("FILE_PATH", file.getAbsolutePath());
-        intent.putExtra("FILE_NAME", file.getName()); // Pass name for DB lookup
+        intent.putExtra("FILE_NAME", file.getName());
         startActivity(intent);
+    }
+
+    // Handle back button to cancel selection
+    @Override
+    public void onBackPressed() {
+        if (adapter.getSelectedFiles().size() > 0) {
+            adapter.clearSelection();
+        } else {
+            super.onBackPressed();
+        }
     }
 }
