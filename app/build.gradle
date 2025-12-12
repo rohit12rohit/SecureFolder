@@ -16,7 +16,6 @@ android {
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 
-    // THIS IS THE FIX:
     buildFeatures {
         buildConfig = true
     }
@@ -38,8 +37,13 @@ dependencies {
     implementation 'com.google.android.material:material:1.11.0'
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
 
-    // Security Crypto Library (Essential for our encryption)
+    // Security Crypto Library
     implementation 'androidx.security:security-crypto:1.1.0-alpha06'
+
+    // MEDIA3 (ExoPlayer) - NEW FOR PHASE 3
+    implementation "androidx.media3:media3-exoplayer:1.2.0"
+    implementation "androidx.media3:media3-ui:1.2.0"
+    implementation "androidx.media3:media3-common:1.2.0"
 
     testImplementation 'junit:junit:4.13.2'
     androidTestImplementation 'androidx.test.ext:junit:1.1.5'

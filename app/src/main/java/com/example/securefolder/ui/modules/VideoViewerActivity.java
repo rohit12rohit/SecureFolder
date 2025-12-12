@@ -3,30 +3,41 @@ package com.example.securefolder.ui.modules;
 import android.media.MediaScannerConnection;
 import android.os.Bundle;
 import android.os.Environment;
-import android.view.View;
 import android.view.WindowManager;
-import android.widget.Button;
-import android.widget.MediaController;
-import android.widget.ProgressBar;
+import android.widget.ImageButton;
+import android.widget.TextView;
 import android.widget.Toast;
-import android.widget.VideoView;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.annotation.OptIn; // Import OptIn
+import androidx.media3.common.MediaItem;
+import androidx.media3.common.PlaybackParameters;
+import androidx.media3.common.util.UnstableApi; // Import UnstableApi
+import androidx.media3.exoplayer.ExoPlayer;
+import androidx.media3.exoplayer.source.MediaSource;
+import androidx.media3.exoplayer.source.ProgressiveMediaSource;
+import androidx.media3.ui.PlayerView;
 import com.example.securefolder.R;
 import com.example.securefolder.utils.CryptoManager;
 import com.example.securefolder.utils.DatabaseHelper;
+import com.example.securefolder.utils.EncryptedDataSourceFactory;
 import com.example.securefolder.utils.KeyManager;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 
+// Mark class to allow Unstable API usage
+@OptIn(markerClass = UnstableApi.class)
 public class VideoViewerActivity extends AppCompatActivity {
 
     private DatabaseHelper dbHelper;
     private String currentFilePath;
     private String currentFileName; // UUID
-    private File tempFile;
     private int fileId = -1;
+
+    private ExoPlayer player;
+    private PlayerView playerView;
+    private float currentSpeed = 1.0f;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -35,56 +46,56 @@ public class VideoViewerActivity extends AppCompatActivity {
         setContentView(R.layout.activity_video_viewer);
 
         dbHelper = new DatabaseHelper(this);
-        VideoView videoView = findViewById(R.id.videoView);
-        ProgressBar progressBar = findViewById(R.id.progressBar);
-        Button btnUnlock = findViewById(R.id.btnUnlock);
-        Button btnTrash = findViewById(R.id.btnTrash);
+        playerView = findViewById(R.id.playerView);
+        TextView tvTitle = findViewById(R.id.tvVideoTitle);
+        ImageButton btnUnlock = findViewById(R.id.btnUnlock);
+        ImageButton btnTrash = findViewById(R.id.btnTrash);
 
         currentFilePath = getIntent().getStringExtra("FILE_PATH");
         currentFileName = getIntent().getStringExtra("FILE_NAME");
 
         if (currentFilePath == null) { finish(); return; }
 
-        // FIX: Use new method
         fileId = dbHelper.getFileIdBySystemName(currentFileName);
-
-        // Decrypt to Temp File
-        new Thread(() -> {
-            try {
-                File encryptedFile = new File(currentFilePath);
-                tempFile = File.createTempFile("PLAY", ".mp4", getCacheDir());
-
-                FileInputStream fis = new FileInputStream(encryptedFile);
-                FileOutputStream fos = new FileOutputStream(tempFile);
-
-                boolean success = CryptoManager.decrypt(KeyManager.getMasterKey(), fis, fos);
-
-                runOnUiThread(() -> {
-                    progressBar.setVisibility(View.GONE);
-                    if (success) {
-                        MediaController mediaController = new MediaController(this);
-                        videoView.setMediaController(mediaController);
-                        videoView.setVideoPath(tempFile.getAbsolutePath());
-                        videoView.start();
-                    } else {
-                        Toast.makeText(this, "Decryption Failed", Toast.LENGTH_SHORT).show();
-                    }
-                });
-
-            } catch (Exception e) {
-                e.printStackTrace();
-                runOnUiThread(this::finish);
-            }
-        }).start();
+        String realName = dbHelper.getDisplayName(currentFileName);
+        tvTitle.setText(realName != null ? realName : "Secure Video");
 
         btnUnlock.setOnClickListener(v -> restoreVideo());
         btnTrash.setOnClickListener(v -> moveToTrash());
+
+        initializePlayer();
+    }
+
+    private void initializePlayer() {
+        File file = new File(currentFilePath);
+
+        // CUSTOM SOURCE: Reads encrypted file directly
+        EncryptedDataSourceFactory factory = new EncryptedDataSourceFactory(file, KeyManager.getMasterKey());
+
+        MediaSource mediaSource = new ProgressiveMediaSource.Factory(factory)
+                .createMediaSource(MediaItem.fromUri(android.net.Uri.fromFile(file)));
+
+        player = new ExoPlayer.Builder(this).build();
+        playerView.setPlayer(player);
+        player.setMediaSource(mediaSource);
+        player.prepare();
+        player.play();
+    }
+
+    public void toggleSpeed() {
+        if (player == null) return;
+        if (currentSpeed == 1.0f) currentSpeed = 1.5f;
+        else if (currentSpeed == 1.5f) currentSpeed = 2.0f;
+        else if (currentSpeed == 2.0f) currentSpeed = 0.5f;
+        else currentSpeed = 1.0f;
+
+        player.setPlaybackParameters(new PlaybackParameters(currentSpeed));
+        Toast.makeText(this, "Speed: " + currentSpeed + "x", Toast.LENGTH_SHORT).show();
     }
 
     private void moveToTrash() {
         new AlertDialog.Builder(this)
                 .setTitle("Move to Trash?")
-                .setMessage("This video will be moved to Trash. You can restore it later.")
                 .setPositiveButton("Delete", (dialog, which) -> {
                     if (fileId != -1) {
                         dbHelper.setFileDeleted(fileId, true);
@@ -97,15 +108,11 @@ public class VideoViewerActivity extends AppCompatActivity {
     }
 
     private void restoreVideo() {
+        if (player != null) player.pause();
         new Thread(() -> {
             try {
-                // Get Real Name
                 String realName = dbHelper.getDisplayName(currentFileName);
-                if (realName == null || realName.equals("Unknown")) {
-                    realName = "Restored_Vid_" + System.currentTimeMillis() + ".mp4";
-                } else {
-                    realName = "Restored_" + realName;
-                }
+                if (realName == null) realName = "Restored_Vid_" + System.currentTimeMillis() + ".mp4";
 
                 File moviesDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES);
                 File destFile = new File(moviesDir, realName);
@@ -119,7 +126,7 @@ public class VideoViewerActivity extends AppCompatActivity {
                     if (fileId != -1) dbHelper.deleteFileRecordPermanently(fileId);
                     MediaScannerConnection.scanFile(this, new String[]{destFile.getAbsolutePath()}, null, null);
                     runOnUiThread(() -> {
-                        Toast.makeText(this, "Restored to Movies: " + destFile.getName(), Toast.LENGTH_LONG).show();
+                        Toast.makeText(this, "Restored to Movies", Toast.LENGTH_LONG).show();
                         finish();
                     });
                 } else {
@@ -132,10 +139,19 @@ public class VideoViewerActivity extends AppCompatActivity {
     }
 
     @Override
+    protected void onStop() {
+        super.onStop();
+        if (player != null) {
+            player.pause();
+        }
+    }
+
+    @Override
     protected void onDestroy() {
         super.onDestroy();
-        if (tempFile != null && tempFile.exists()) {
-            tempFile.delete(); // Secure delete temp file
+        if (player != null) {
+            player.release();
+            player = null;
         }
     }
 }
