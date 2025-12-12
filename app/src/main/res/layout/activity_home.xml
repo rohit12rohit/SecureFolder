@@ -3,7 +3,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/background"
+    android:background="?android:attr/colorBackground"
     android:padding="16dp">
 
     <LinearLayout
@@ -16,7 +16,7 @@
             android:layout_height="wrap_content"
             android:layout_marginBottom="24dp"
             android:text="My Vault"
-            android:textColor="@color/primary"
+            android:textColor="?attr/colorPrimary"
             android:textSize="32sp"
             android:textStyle="bold" />
 
@@ -34,7 +34,7 @@
                 android:layout_rowWeight="1"
                 android:layout_columnWeight="1"
                 android:layout_margin="8dp"
-                app:cardBackgroundColor="@color/white"
+                app:cardBackgroundColor="?attr/colorSurface"
                 app:cardCornerRadius="16dp"
                 app:cardElevation="4dp">
                 <LinearLayout
@@ -47,12 +47,12 @@
                         android:layout_height="48dp"
                         android:layout_marginBottom="8dp"
                         android:src="@drawable/ic_photo"
-                        app:tint="@color/primary" />
+                        app:tint="?attr/colorPrimary" />
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="Photos"
-                        android:textColor="@color/black"
+                        android:textColor="?android:attr/textColorPrimary"
                         android:textStyle="bold" />
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
@@ -64,7 +64,7 @@
                 android:layout_rowWeight="1"
                 android:layout_columnWeight="1"
                 android:layout_margin="8dp"
-                app:cardBackgroundColor="@color/white"
+                app:cardBackgroundColor="?attr/colorSurface"
                 app:cardCornerRadius="16dp"
                 app:cardElevation="4dp">
                 <LinearLayout
@@ -77,12 +77,12 @@
                         android:layout_height="48dp"
                         android:layout_marginBottom="8dp"
                         android:src="@drawable/ic_video"
-                        app:tint="@color/secondary" />
+                        app:tint="?attr/colorSecondary" />
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="Videos"
-                        android:textColor="@color/black"
+                        android:textColor="?android:attr/textColorPrimary"
                         android:textStyle="bold" />
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
@@ -94,7 +94,7 @@
                 android:layout_rowWeight="1"
                 android:layout_columnWeight="1"
                 android:layout_margin="8dp"
-                app:cardBackgroundColor="@color/white"
+                app:cardBackgroundColor="?attr/colorSurface"
                 app:cardCornerRadius="16dp"
                 app:cardElevation="4dp">
                 <LinearLayout
@@ -112,7 +112,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="Documents"
-                        android:textColor="@color/black"
+                        android:textColor="?android:attr/textColorPrimary"
                         android:textStyle="bold" />
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
@@ -124,7 +124,7 @@
                 android:layout_rowWeight="1"
                 android:layout_columnWeight="1"
                 android:layout_margin="8dp"
-                app:cardBackgroundColor="@color/white"
+                app:cardBackgroundColor="?attr/colorSurface"
                 app:cardCornerRadius="16dp"
                 app:cardElevation="4dp">
                 <LinearLayout
@@ -142,7 +142,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="Notes"
-                        android:textColor="@color/black"
+                        android:textColor="?android:attr/textColorPrimary"
                         android:textStyle="bold" />
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
@@ -154,7 +154,7 @@
                 android:layout_rowWeight="1"
                 android:layout_columnWeight="1"
                 android:layout_margin="8dp"
-                app:cardBackgroundColor="@color/white"
+                app:cardBackgroundColor="?attr/colorSurface"
                 app:cardCornerRadius="16dp"
                 app:cardElevation="4dp">
                 <LinearLayout
@@ -172,7 +172,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="Passwords"
-                        android:textColor="@color/black"
+                        android:textColor="?android:attr/textColorPrimary"
                         android:textStyle="bold" />
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
@@ -184,7 +184,7 @@
                 android:layout_rowWeight="1"
                 android:layout_columnWeight="1"
                 android:layout_margin="8dp"
-                app:cardBackgroundColor="@color/white"
+                app:cardBackgroundColor="?attr/colorSurface"
                 app:cardCornerRadius="16dp"
                 app:cardElevation="4dp">
                 <LinearLayout
@@ -202,7 +202,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="Trash"
-                        android:textColor="@color/black"
+                        android:textColor="?android:attr/textColorPrimary"
                         android:textStyle="bold" />
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
@@ -215,7 +215,7 @@
                 android:layout_columnSpan="2"
                 android:layout_gravity="fill"
                 android:layout_margin="8dp"
-                app:cardBackgroundColor="@color/white"
+                app:cardBackgroundColor="?attr/colorSurface"
                 app:cardCornerRadius="16dp"
                 app:cardElevation="4dp">
                 <LinearLayout
@@ -233,7 +233,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="Settings"
-                        android:textColor="@color/black"
+                        android:textColor="?android:attr/textColorPrimary"
                         android:textStyle="bold"
                         android:textSize="18sp"/>
                 </LinearLayout>
