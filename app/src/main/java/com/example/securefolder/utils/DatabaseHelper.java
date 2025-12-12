@@ -9,27 +9,28 @@ import android.database.sqlite.SQLiteOpenHelper;
 public class DatabaseHelper extends SQLiteOpenHelper {
 
     private static final String DB_NAME = "SecureVault.db";
-    private static final int DB_VERSION = 4;
+    // INCREMENT VERSION TO FORCE UPDATE
+    private static final int DB_VERSION = 5;
 
-    // Table: Notes
-    public static final String TABLE_NOTES = "notes";
+    // Table: Files
+    public static final String TABLE_FILES = "files";
     public static final String COL_ID = "id";
-    public static final String COL_TITLE = "title";
-    public static final String COL_CONTENT = "content";
+    public static final String COL_FILE_TYPE = "type"; // "PHOTO", "VIDEO", "DOC"
+    public static final String COL_SYSTEM_NAME = "system_name"; // UUID.bin (On Disk)
+    public static final String COL_DISPLAY_NAME = "display_name"; // "MyPic.jpg" (In App)
+    public static final String COL_ORIG_PATH = "orig_path";
     public static final String COL_TIMESTAMP = "timestamp";
     public static final String COL_IS_DELETED = "is_deleted";
 
-    // Table: Passwords
+    // Table: Notes & Passwords (Unchanged for now)
+    public static final String TABLE_NOTES = "notes";
     public static final String TABLE_PASSWORDS = "passwords";
+    // ... define columns for notes/passwords as before ...
+    public static final String COL_TITLE = "title";
+    public static final String COL_CONTENT = "content";
     public static final String COL_APP_NAME = "app_name";
     public static final String COL_USERNAME = "username";
     public static final String COL_PASSWORD = "password";
-
-    // Table: Files (Photos/Videos)
-    public static final String TABLE_FILES = "files";
-    public static final String COL_FILE_TYPE = "type"; // "PHOTO" or "VIDEO"
-    public static final String COL_ENC_NAME = "enc_name";
-    public static final String COL_ORIG_PATH = "orig_path";
 
     public DatabaseHelper(Context context) {
         super(context, DB_NAME, null, DB_VERSION);
@@ -37,6 +38,15 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 
     @Override
     public void onCreate(SQLiteDatabase db) {
+        db.execSQL("CREATE TABLE " + TABLE_FILES + " (" +
+                COL_ID + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                COL_FILE_TYPE + " TEXT, " +
+                COL_SYSTEM_NAME + " TEXT, " +
+                COL_DISPLAY_NAME + " TEXT, " +
+                COL_ORIG_PATH + " TEXT, " +
+                COL_TIMESTAMP + " INTEGER, " +
+                COL_IS_DELETED + " INTEGER DEFAULT 0)");
+
         db.execSQL("CREATE TABLE " + TABLE_NOTES + " (" +
                 COL_ID + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
                 COL_TITLE + " TEXT, " +
@@ -51,42 +61,24 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                 COL_PASSWORD + " TEXT, " +
                 COL_TIMESTAMP + " INTEGER, " +
                 COL_IS_DELETED + " INTEGER DEFAULT 0)");
-
-        db.execSQL("CREATE TABLE " + TABLE_FILES + " (" +
-                COL_ID + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
-                COL_FILE_TYPE + " TEXT, " +
-                COL_ENC_NAME + " TEXT, " +
-                COL_ORIG_PATH + " TEXT, " +
-                COL_TIMESTAMP + " INTEGER, " +
-                COL_IS_DELETED + " INTEGER DEFAULT 0)");
     }
 
     @Override
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
+        // For development, just drop and recreate
+        db.execSQL("DROP TABLE IF EXISTS " + TABLE_FILES);
         db.execSQL("DROP TABLE IF EXISTS " + TABLE_NOTES);
         db.execSQL("DROP TABLE IF EXISTS " + TABLE_PASSWORDS);
-        db.execSQL("DROP TABLE IF EXISTS " + TABLE_FILES);
         onCreate(db);
     }
 
-    // --- HELPER FOR IDS ---
-    public int getFileId(String encName) {
-        SQLiteDatabase db = this.getReadableDatabase();
-        Cursor cursor = db.rawQuery("SELECT " + COL_ID + " FROM " + TABLE_FILES + " WHERE " + COL_ENC_NAME + "=?", new String[]{encName});
-        int id = -1;
-        if (cursor != null) {
-            if (cursor.moveToFirst()) id = cursor.getInt(0);
-            cursor.close();
-        }
-        return id;
-    }
-
     // --- FILES OPERATIONS ---
-    public void addFile(String type, String encName, String origPath) {
+    public void addFile(String type, String systemName, String displayName, String origPath) {
         SQLiteDatabase db = this.getWritableDatabase();
         ContentValues values = new ContentValues();
         values.put(COL_FILE_TYPE, type);
-        values.put(COL_ENC_NAME, encName);
+        values.put(COL_SYSTEM_NAME, systemName);
+        values.put(COL_DISPLAY_NAME, displayName);
         values.put(COL_ORIG_PATH, origPath);
         values.put(COL_TIMESTAMP, System.currentTimeMillis());
         values.put(COL_IS_DELETED, 0);
@@ -104,15 +96,39 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         return db.rawQuery("SELECT * FROM " + TABLE_FILES + " WHERE " + COL_IS_DELETED + "=1 ORDER BY " + COL_TIMESTAMP + " DESC", null);
     }
 
-    public String getOriginalPath(String encName) {
+    public int getFileIdBySystemName(String sysName) {
         SQLiteDatabase db = this.getReadableDatabase();
-        Cursor cursor = db.rawQuery("SELECT " + COL_ORIG_PATH + " FROM " + TABLE_FILES + " WHERE " + COL_ENC_NAME + "=?", new String[]{encName});
+        Cursor cursor = db.rawQuery("SELECT " + COL_ID + " FROM " + TABLE_FILES + " WHERE " + COL_SYSTEM_NAME + "=?", new String[]{sysName});
+        int id = -1;
+        if (cursor != null) {
+            if (cursor.moveToFirst()) id = cursor.getInt(0);
+            cursor.close();
+        }
+        return id;
+    }
+
+    // Get Original Path for Restore
+    public String getOriginalPath(String sysName) {
+        SQLiteDatabase db = this.getReadableDatabase();
+        Cursor cursor = db.rawQuery("SELECT " + COL_ORIG_PATH + " FROM " + TABLE_FILES + " WHERE " + COL_SYSTEM_NAME + "=?", new String[]{sysName});
         if (cursor != null && cursor.moveToFirst()) {
             String path = cursor.getString(0);
             cursor.close();
             return path;
         }
         return null;
+    }
+
+    // Get Display Name (Real filename)
+    public String getDisplayName(String sysName) {
+        SQLiteDatabase db = this.getReadableDatabase();
+        Cursor cursor = db.rawQuery("SELECT " + COL_DISPLAY_NAME + " FROM " + TABLE_FILES + " WHERE " + COL_SYSTEM_NAME + "=?", new String[]{sysName});
+        if (cursor != null && cursor.moveToFirst()) {
+            String name = cursor.getString(0);
+            cursor.close();
+            return name;
+        }
+        return "Unknown";
     }
 
     public void setFileDeleted(int id, boolean deleted) {
@@ -129,7 +145,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         db.close();
     }
 
-    // --- NOTES OPERATIONS ---
+    // --- NOTES & PASSWORDS (CRUD) ---
     public void addNote(String title, String content) {
         SQLiteDatabase db = this.getWritableDatabase();
         ContentValues values = new ContentValues();
@@ -167,30 +183,27 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 
     public Cursor getAllNotes(boolean showDeleted) {
         SQLiteDatabase db = this.getReadableDatabase();
-        String where = COL_IS_DELETED + "=?";
-        String[] args = { showDeleted ? "1" : "0" };
-        return db.query(TABLE_NOTES, null, where, args, null, null, COL_TIMESTAMP + " DESC");
+        return db.query(TABLE_NOTES, null, COL_IS_DELETED + "=?", new String[]{showDeleted?"1":"0"}, null, null, COL_TIMESTAMP + " DESC");
     }
 
-    // --- PASSWORDS OPERATIONS ---
-    public void addPassword(String appName, String username, String password) {
+    public void addPassword(String app, String user, String pass) {
         SQLiteDatabase db = this.getWritableDatabase();
         ContentValues values = new ContentValues();
-        values.put(COL_APP_NAME, appName);
-        values.put(COL_USERNAME, username);
-        values.put(COL_PASSWORD, password);
+        values.put(COL_APP_NAME, app);
+        values.put(COL_USERNAME, user);
+        values.put(COL_PASSWORD, pass);
         values.put(COL_TIMESTAMP, System.currentTimeMillis());
         values.put(COL_IS_DELETED, 0);
         db.insert(TABLE_PASSWORDS, null, values);
         db.close();
     }
 
-    public void updatePassword(int id, String appName, String username, String password) {
+    public void updatePassword(int id, String app, String user, String pass) {
         SQLiteDatabase db = this.getWritableDatabase();
         ContentValues values = new ContentValues();
-        values.put(COL_APP_NAME, appName);
-        values.put(COL_USERNAME, username);
-        values.put(COL_PASSWORD, password);
+        values.put(COL_APP_NAME, app);
+        values.put(COL_USERNAME, user);
+        values.put(COL_PASSWORD, pass);
         values.put(COL_TIMESTAMP, System.currentTimeMillis());
         db.update(TABLE_PASSWORDS, values, COL_ID + "=?", new String[]{String.valueOf(id)});
         db.close();
@@ -212,8 +225,6 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 
     public Cursor getAllPasswords(boolean showDeleted) {
         SQLiteDatabase db = this.getReadableDatabase();
-        String where = COL_IS_DELETED + "=?";
-        String[] args = { showDeleted ? "1" : "0" };
-        return db.query(TABLE_PASSWORDS, null, where, args, null, null, COL_TIMESTAMP + " DESC");
+        return db.query(TABLE_PASSWORDS, null, COL_IS_DELETED + "=?", new String[]{showDeleted?"1":"0"}, null, null, COL_TIMESTAMP + " DESC");
     }
 }

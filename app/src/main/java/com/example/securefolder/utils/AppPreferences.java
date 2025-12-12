@@ -3,17 +3,18 @@ package com.example.securefolder.utils;
 import android.content.Context;
 import android.content.SharedPreferences;
 
-/**
- * AppPreferences
- * Handles saving simple app data (flags, hashes) securely.
- */
 public class AppPreferences {
 
     private static final String PREF_NAME = "SecureFolderPrefs";
+
+    // Auth Flags
     private static final String KEY_IS_SETUP_DONE = "is_setup_done";
-    private static final String KEY_PASSWORD_HASH = "password_hash";
-    private static final String KEY_PASSWORD_SALT = "password_salt";
     private static final String KEY_FAILED_ATTEMPTS = "failed_attempts";
+
+    // KEK Architecture (New)
+    private static final String KEY_SALT = "auth_salt"; // For PBKDF2
+    private static final String KEY_MASTER_BLOB = "master_key_blob"; // Encrypted Master Key
+    private static final String KEY_MASTER_IV = "master_key_iv"; // IV for the Blob
 
     private final SharedPreferences sharedPreferences;
 
@@ -29,19 +30,24 @@ public class AppPreferences {
         return sharedPreferences.getBoolean(KEY_IS_SETUP_DONE, false);
     }
 
-    public void savePasswordData(String hash, String salt) {
+    public void saveVaultData(String salt, String encryptedKeyBlob, String iv) {
         sharedPreferences.edit()
-                .putString(KEY_PASSWORD_HASH, hash)
-                .putString(KEY_PASSWORD_SALT, salt)
+                .putString(KEY_SALT, salt)
+                .putString(KEY_MASTER_BLOB, encryptedKeyBlob)
+                .putString(KEY_MASTER_IV, iv)
                 .apply();
     }
 
-    public String getPasswordHash() {
-        return sharedPreferences.getString(KEY_PASSWORD_HASH, null);
+    public String getSalt() {
+        return sharedPreferences.getString(KEY_SALT, null);
     }
 
-    public String getPasswordSalt() {
-        return sharedPreferences.getString(KEY_PASSWORD_SALT, null);
+    public String getMasterKeyBlob() {
+        return sharedPreferences.getString(KEY_MASTER_BLOB, null);
+    }
+
+    public String getMasterKeyIV() {
+        return sharedPreferences.getString(KEY_MASTER_IV, null);
     }
 
     public void incrementFailedAttempts() {

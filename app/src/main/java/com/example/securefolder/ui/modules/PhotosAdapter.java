@@ -9,6 +9,7 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 import com.example.securefolder.R;
+import com.example.securefolder.utils.DatabaseHelper;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -18,6 +19,7 @@ import java.util.Set;
 public class PhotosAdapter extends RecyclerView.Adapter<PhotosAdapter.ViewHolder> {
 
     private final List<File> files;
+    private final DatabaseHelper dbHelper; // To look up real names
     private final OnPhotoActionListener listener;
 
     // Selection State
@@ -29,8 +31,9 @@ public class PhotosAdapter extends RecyclerView.Adapter<PhotosAdapter.ViewHolder
         void onSelectionModeChanged(boolean active, int count);
     }
 
-    public PhotosAdapter(List<File> files, OnPhotoActionListener listener) {
+    public PhotosAdapter(List<File> files, DatabaseHelper dbHelper, OnPhotoActionListener listener) {
         this.files = files;
+        this.dbHelper = dbHelper;
         this.listener = listener;
     }
 
@@ -44,7 +47,10 @@ public class PhotosAdapter extends RecyclerView.Adapter<PhotosAdapter.ViewHolder
     @Override
     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
         File file = files.get(position);
-        holder.tvName.setText("Secure Img " + (position + 1));
+
+        // Lookup Display Name from DB (Because file name is now random UUID)
+        String displayName = dbHelper.getDisplayName(file.getName());
+        holder.tvName.setText(displayName);
 
         // Handle Visual Selection
         if (selectedFiles.contains(file)) {
@@ -67,6 +73,7 @@ public class PhotosAdapter extends RecyclerView.Adapter<PhotosAdapter.ViewHolder
             if (!isSelectionMode) {
                 isSelectionMode = true;
                 toggleSelection(file);
+                listener.onSelectionModeChanged(true, selectedFiles.size());
                 return true;
             }
             return false;
@@ -80,7 +87,6 @@ public class PhotosAdapter extends RecyclerView.Adapter<PhotosAdapter.ViewHolder
             selectedFiles.add(file);
         }
 
-        // Check if we should exit selection mode
         if (selectedFiles.isEmpty()) {
             isSelectionMode = false;
         }
