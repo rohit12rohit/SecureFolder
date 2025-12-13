@@ -10,11 +10,12 @@ public class AppPreferences {
     // Auth Flags
     private static final String KEY_IS_SETUP_DONE = "is_setup_done";
     private static final String KEY_FAILED_ATTEMPTS = "failed_attempts";
+    private static final String KEY_LOCK_TIMEOUT = "lock_timeout_ms"; // New
 
-    // KEK Architecture (New)
-    private static final String KEY_SALT = "auth_salt"; // For PBKDF2
-    private static final String KEY_MASTER_BLOB = "master_key_blob"; // Encrypted Master Key
-    private static final String KEY_MASTER_IV = "master_key_iv"; // IV for the Blob
+    // KEK Architecture
+    private static final String KEY_SALT = "auth_salt";
+    private static final String KEY_MASTER_BLOB = "master_key_blob";
+    private static final String KEY_MASTER_IV = "master_key_iv";
 
     private final SharedPreferences sharedPreferences;
 
@@ -38,17 +39,9 @@ public class AppPreferences {
                 .apply();
     }
 
-    public String getSalt() {
-        return sharedPreferences.getString(KEY_SALT, null);
-    }
-
-    public String getMasterKeyBlob() {
-        return sharedPreferences.getString(KEY_MASTER_BLOB, null);
-    }
-
-    public String getMasterKeyIV() {
-        return sharedPreferences.getString(KEY_MASTER_IV, null);
-    }
+    public String getSalt() { return sharedPreferences.getString(KEY_SALT, null); }
+    public String getMasterKeyBlob() { return sharedPreferences.getString(KEY_MASTER_BLOB, null); }
+    public String getMasterKeyIV() { return sharedPreferences.getString(KEY_MASTER_IV, null); }
 
     public void incrementFailedAttempts() {
         int current = getFailedAttempts();
@@ -61,6 +54,16 @@ public class AppPreferences {
 
     public int getFailedAttempts() {
         return sharedPreferences.getInt(KEY_FAILED_ATTEMPTS, 0);
+    }
+
+    // --- LOCK SETTINGS ---
+    public void setLockTimeout(long millis) {
+        sharedPreferences.edit().putLong(KEY_LOCK_TIMEOUT, millis).apply();
+    }
+
+    public long getLockTimeout() {
+        // Default to "Immediate" (0) or 5000ms? Let's default to Immediate for security.
+        return sharedPreferences.getLong(KEY_LOCK_TIMEOUT, 0);
     }
 
     public void clearAllData() {

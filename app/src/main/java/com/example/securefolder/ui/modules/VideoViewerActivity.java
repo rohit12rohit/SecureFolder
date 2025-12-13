@@ -9,11 +9,12 @@ import android.widget.TextView;
 import android.widget.Toast;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.annotation.OptIn; // Import OptIn
+import androidx.annotation.OptIn;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.PlaybackParameters;
-import androidx.media3.common.util.UnstableApi; // Import UnstableApi
+import androidx.media3.common.util.UnstableApi;
 import androidx.media3.exoplayer.ExoPlayer;
+import androidx.media3.exoplayer.DefaultLoadControl;
 import androidx.media3.exoplayer.source.MediaSource;
 import androidx.media3.exoplayer.source.ProgressiveMediaSource;
 import androidx.media3.ui.PlayerView;
@@ -26,13 +27,12 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 
-// Mark class to allow Unstable API usage
 @OptIn(markerClass = UnstableApi.class)
 public class VideoViewerActivity extends AppCompatActivity {
 
     private DatabaseHelper dbHelper;
     private String currentFilePath;
-    private String currentFileName; // UUID
+    private String currentFileName;
     private int fileId = -1;
 
     private ExoPlayer player;
@@ -69,19 +69,34 @@ public class VideoViewerActivity extends AppCompatActivity {
     private void initializePlayer() {
         File file = new File(currentFilePath);
 
-        // CUSTOM SOURCE: Reads encrypted file directly
+        // 1. Setup LoadControl to buffer MORE data (Helps with decryption lag)
+        DefaultLoadControl loadControl = new DefaultLoadControl.Builder()
+                .setBufferDurationsMs(
+                        3000,  // Min buffer before start
+                        50000, // Max buffer
+                        1500,  // Buffer for playback
+                        2000   // Buffer for rebuffer
+                ).build();
+
+        // 2. Create Factory
         EncryptedDataSourceFactory factory = new EncryptedDataSourceFactory(file, KeyManager.getMasterKey());
 
+        // 3. Create Media Source
         MediaSource mediaSource = new ProgressiveMediaSource.Factory(factory)
                 .createMediaSource(MediaItem.fromUri(android.net.Uri.fromFile(file)));
 
-        player = new ExoPlayer.Builder(this).build();
+        // 4. Build Player
+        player = new ExoPlayer.Builder(this)
+                .setLoadControl(loadControl)
+                .build();
+
         playerView.setPlayer(player);
         player.setMediaSource(mediaSource);
         player.prepare();
-        player.play();
+        player.setPlayWhenReady(true);
     }
 
+    // ... (Keep toggleSpeed, moveToTrash, restoreVideo, onStop, onDestroy as they were) ...
     public void toggleSpeed() {
         if (player == null) return;
         if (currentSpeed == 1.0f) currentSpeed = 1.5f;
@@ -141,9 +156,7 @@ public class VideoViewerActivity extends AppCompatActivity {
     @Override
     protected void onStop() {
         super.onStop();
-        if (player != null) {
-            player.pause();
-        }
+        if (player != null) player.pause();
     }
 
     @Override

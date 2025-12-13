@@ -1,66 +1,74 @@
 package com.example.securefolder.utils;
 
+import android.content.ContentValues;
 import android.content.Context;
+import android.net.Uri;
+import android.os.Build;
 import android.os.Environment;
+import android.provider.MediaStore;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 public class BackupHelper {
 
-    /**
-     * Creates a Secure Backup of the entire Vault.
-     * 1. Zips the Vault directory (files are already encrypted).
-     * 2. Encrypts the ZIP file itself to protect the database and structure.
-     * 3. Saves to Downloads folder.
-     */
     public static String createSecureBackup(Context context) {
         File vaultRoot = context.getExternalFilesDir("Vault");
         File dbFile = context.getDatabasePath("SecureVault.db");
         File cacheDir = context.getCacheDir();
 
-        // 1. Prepare Staging Area
+        // 1. Prepare Staging
         File stagingDir = new File(cacheDir, "Staging");
         if (stagingDir.exists()) deleteRecursive(stagingDir);
         stagingDir.mkdirs();
 
         try {
-            // Copy Database (Critical for mapping filenames)
             copyFile(dbFile, new File(stagingDir, "SecureVault.db"));
-
-            // Copy Vault Files (Photos, Videos, etc)
-            // They are already encrypted, but we copy them to zip them together.
             copyDirectory(vaultRoot, new File(stagingDir, "Vault"));
 
-            // 2. Zip the Staging Directory
+            // 2. Zip
             File zipFile = new File(cacheDir, "temp_backup.zip");
             zipDirectory(stagingDir, zipFile);
 
-            // 3. Encrypt the Zip File
-            File downloadDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+            // 3. Encrypt & Save using MediaStore (Visible to User)
             String backupName = "SecureVault_Backup_" + System.currentTimeMillis() + ".enc";
-            File finalBackup = new File(downloadDir, backupName);
 
+            Uri uri = saveToDownloads(context, backupName);
+            if (uri == null) return null;
+
+            OutputStream out = context.getContentResolver().openOutputStream(uri);
             FileInputStream fis = new FileInputStream(zipFile);
-            FileOutputStream fos = new FileOutputStream(finalBackup);
 
-            // This encrypts the entire zip with the Master Key
-            boolean success = CryptoManager.encrypt(KeyManager.getMasterKey(), fis, fos);
+            // Encrypt directly to the output stream (Downloads folder)
+            boolean success = CryptoManager.encrypt(KeyManager.getMasterKey(), fis, out);
+
+            fis.close();
+            if (out != null) out.close();
 
             // Cleanup
             deleteRecursive(stagingDir);
             zipFile.delete();
 
-            if (success) return finalBackup.getAbsolutePath();
-            else return null;
+            return success ? "Downloads/" + backupName : null;
 
         } catch (Exception e) {
             e.printStackTrace();
             return null;
         }
+    }
+
+    private static Uri saveToDownloads(Context context, String fileName) {
+        ContentValues values = new ContentValues();
+        values.put(MediaStore.MediaColumns.DISPLAY_NAME, fileName);
+        values.put(MediaStore.MediaColumns.MIME_TYPE, "application/octet-stream");
+        values.put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS);
+
+        return context.getContentResolver().insert(MediaStore.Files.getContentUri("external"), values);
     }
 
     private static void copyFile(File src, File dst) throws IOException {
@@ -102,7 +110,6 @@ public class BackupHelper {
                 }
             }
         } else {
-            // Calculate relative path
             String relativePath = sourceFile.getAbsolutePath().substring(rootDir.getAbsolutePath().length() + 1);
             ZipEntry ze = new ZipEntry(relativePath);
             zos.putNextEntry(ze);
