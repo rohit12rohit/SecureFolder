@@ -190,7 +190,7 @@ public class KeyManager {
     }
 
     private static SecretKey deriveWrapperKey(String password, byte[] salt) throws Exception {
-        // PBKDF2 with HMAC-SHA256
+
         KeySpec spec = new PBEKeySpec(password.toCharArray(), salt, PBKDF2_ITERATIONS, KEY_LENGTH);
         SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
         byte[] keyBytes = factory.generateSecret(spec).getEncoded();
