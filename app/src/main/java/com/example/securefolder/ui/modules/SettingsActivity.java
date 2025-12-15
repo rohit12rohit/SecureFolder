@@ -4,6 +4,8 @@ import android.app.AlertDialog;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.Button;
+import android.widget.EditText;
+import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -26,8 +28,9 @@ public class SettingsActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_settings);
 
-        prefs = new AppPreferences(this);
+        if (KeyManager.getMasterKey() == null) { finish(); return; }
 
+        prefs = new AppPreferences(this);
         TextView tvVersion = findViewById(R.id.tvVersion);
         tvVersion.setText("Version " + BuildConfig.VERSION_NAME);
 
@@ -35,29 +38,23 @@ public class SettingsActivity extends AppCompatActivity {
         Button btnChangePass = findViewById(R.id.btnChangePassword);
         Button btnBackup = findViewById(R.id.btnBackup);
         Button btnDeleteAll = findViewById(R.id.btnDeleteAll);
-        Button btnAbout = findViewById(R.id.btnAbout);
 
-        // --- NEW: Lock Settings ---
-        // We will add a button dynamically or you can add to layout.
-        // For now, let's assume there is a button or we add one.
-        // Actually, let's just repurpose the top area or add a dialog.
-        // Better: Update layout. I'll stick to a dialog triggered by a new Button or just add it.
-        // Let's add a "Auto-Lock Settings" button to the XML (user needs to update XML).
-        // Since I can't see the XML change unless you apply it, I'll assume you add a button ID `btnLockSettings`.
-        // If not, I'll attach it to a generic menu.
-
-        // For simplicity, let's trigger it via a new "Security Settings" button in XML
-        // or just hook into an existing one.
-
+        // Setup Buttons
         btnChangePass.setOnClickListener(v -> showChangePassDialog());
         btnBackup.setOnClickListener(v -> performBackup());
         btnDeleteAll.setOnClickListener(v -> showWipeDialog());
 
-        // Add Lock Timeout Dialog
+        // Setup Auto-Lock UI (Dynamic)
+        setupAutoLockUI();
+    }
+
+    private void setupAutoLockUI() {
+        // Find container
+        LinearLayout container = (LinearLayout) findViewById(R.id.btnChangePassword).getParent();
+
         Button btnLockTimeout = new Button(this);
         btnLockTimeout.setText("Auto-Lock: " + getTimeoutLabel(prefs.getLockTimeout()));
-        // Add to layout dynamically for now to ensure it exists
-        ((android.widget.LinearLayout)findViewById(R.id.btnChangePassword).getParent()).addView(btnLockTimeout, 2);
+        container.addView(btnLockTimeout, 1); // Add below first button
 
         btnLockTimeout.setOnClickListener(v -> {
             String[] options = {"Immediately", "5 Seconds", "30 Seconds", "1 Minute"};
@@ -82,11 +79,45 @@ public class SettingsActivity extends AppCompatActivity {
     }
 
     private void showChangePassDialog() {
-        new AlertDialog.Builder(this)
-                .setTitle("Change Password")
-                .setMessage("Not implemented in this phase. Requires KEK re-wrapping.")
-                .setPositiveButton("OK", null)
-                .show();
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Change Password");
+
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(50, 40, 50, 10);
+
+        final EditText inputNewPass = new EditText(this);
+        inputNewPass.setHint("New Password");
+        layout.addView(inputNewPass);
+
+        final EditText inputConfirm = new EditText(this);
+        inputConfirm.setHint("Confirm Password");
+        layout.addView(inputConfirm);
+
+        builder.setView(layout);
+
+        builder.setPositiveButton("Update", (dialog, which) -> {
+            String newPass = inputNewPass.getText().toString();
+            String confirm = inputConfirm.getText().toString();
+
+            if (!newPass.equals(confirm)) {
+                Toast.makeText(this, "Passwords do not match", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            if (newPass.length() < 6) {
+                Toast.makeText(this, "Password too short", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            boolean success = KeyManager.changePassword(this, newPass);
+            if (success) {
+                Toast.makeText(this, "Password Changed Successfully", Toast.LENGTH_SHORT).show();
+            } else {
+                Toast.makeText(this, "Failed to update password", Toast.LENGTH_SHORT).show();
+            }
+        });
+        builder.setNegativeButton("Cancel", null);
+        builder.show();
     }
 
     private void performBackup() {
@@ -98,7 +129,7 @@ public class SettingsActivity extends AppCompatActivity {
                 if (path != null) {
                     new AlertDialog.Builder(this)
                             .setTitle("Backup Successful")
-                            .setMessage("Saved to Downloads folder.\nFile: " + path)
+                            .setMessage("Saved to: " + path)
                             .setPositiveButton("OK", null)
                             .show();
                 } else {
@@ -110,17 +141,38 @@ public class SettingsActivity extends AppCompatActivity {
 
     private void showWipeDialog() {
         new AlertDialog.Builder(this)
-                .setTitle("Wipe All Data?")
-                .setMessage("Irreversible action.")
-                .setPositiveButton("Wipe", (d, w) -> {
-                    // Wipe logic...
+                .setTitle("Wipe ALL Data?")
+                .setMessage("This will permanently delete all files, notes, and passwords. This cannot be undone.")
+                .setPositiveButton("Wipe Everything", (d, w) -> {
+                    // 1. Clear Database
                     DatabaseHelper db = new DatabaseHelper(this);
                     db.getWritableDatabase().execSQL("DELETE FROM " + DatabaseHelper.TABLE_FILES);
-                    // ...
-                    Toast.makeText(this, "Data Wiped", Toast.LENGTH_SHORT).show();
-                    finishAffinity();
+                    db.getWritableDatabase().execSQL("DELETE FROM " + DatabaseHelper.TABLE_NOTES);
+                    db.getWritableDatabase().execSQL("DELETE FROM " + DatabaseHelper.TABLE_PASSWORDS);
+
+                    // 2. Recursive Delete of Vault Folder
+                    File vaultRoot = new File(getExternalFilesDir(null), "Vault");
+                    deleteRecursive(vaultRoot);
+
+                    // 3. Clear Prefs
+                    prefs.clearAllData();
+                    KeyManager.clearKey();
+
+                    Toast.makeText(this, "App Reset Complete", Toast.LENGTH_SHORT).show();
+                    finishAffinity(); // Close app
                 })
                 .setNegativeButton("Cancel", null)
                 .show();
+    }
+
+    private void deleteRecursive(File fileOrDirectory) {
+        if (fileOrDirectory != null && fileOrDirectory.exists()) {
+            if (fileOrDirectory.isDirectory()) {
+                for (File child : fileOrDirectory.listFiles()) {
+                    deleteRecursive(child);
+                }
+            }
+            fileOrDirectory.delete();
+        }
     }
 }

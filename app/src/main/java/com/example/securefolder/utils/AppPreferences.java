@@ -10,12 +10,19 @@ public class AppPreferences {
     // Auth Flags
     private static final String KEY_IS_SETUP_DONE = "is_setup_done";
     private static final String KEY_FAILED_ATTEMPTS = "failed_attempts";
-    private static final String KEY_LOCK_TIMEOUT = "lock_timeout_ms"; // New
+    private static final String KEY_LOCK_TIMEOUT = "lock_timeout_ms";
+    private static final String KEY_LAST_ACTIVE = "last_active_timestamp";
 
-    // KEK Architecture
+    // Primary Key Architecture (Password Protected)
     private static final String KEY_SALT = "auth_salt";
     private static final String KEY_MASTER_BLOB = "master_key_blob";
     private static final String KEY_MASTER_IV = "master_key_iv";
+
+    // Recovery Key Architecture (Code Protected)
+    private static final String KEY_RECOVERY_SALT = "recovery_salt";
+    private static final String KEY_RECOVERY_BLOB = "recovery_blob";
+    private static final String KEY_RECOVERY_IV = "recovery_iv";
+    private static final String KEY_RECOVERY_ENABLED = "recovery_enabled";
 
     private final SharedPreferences sharedPreferences;
 
@@ -31,6 +38,7 @@ public class AppPreferences {
         return sharedPreferences.getBoolean(KEY_IS_SETUP_DONE, false);
     }
 
+    // --- PRIMARY VAULT DATA ---
     public void saveVaultData(String salt, String encryptedKeyBlob, String iv) {
         sharedPreferences.edit()
                 .putString(KEY_SALT, salt)
@@ -43,6 +51,22 @@ public class AppPreferences {
     public String getMasterKeyBlob() { return sharedPreferences.getString(KEY_MASTER_BLOB, null); }
     public String getMasterKeyIV() { return sharedPreferences.getString(KEY_MASTER_IV, null); }
 
+    // --- RECOVERY DATA ---
+    public void saveRecoveryData(String salt, String encryptedBlob, String iv) {
+        sharedPreferences.edit()
+                .putString(KEY_RECOVERY_SALT, salt)
+                .putString(KEY_RECOVERY_BLOB, encryptedBlob)
+                .putString(KEY_RECOVERY_IV, iv)
+                .putBoolean(KEY_RECOVERY_ENABLED, true)
+                .apply();
+    }
+
+    public String getRecoverySalt() { return sharedPreferences.getString(KEY_RECOVERY_SALT, null); }
+    public String getRecoveryBlob() { return sharedPreferences.getString(KEY_RECOVERY_BLOB, null); }
+    public String getRecoveryIV() { return sharedPreferences.getString(KEY_RECOVERY_IV, null); }
+    public boolean isRecoveryEnabled() { return sharedPreferences.getBoolean(KEY_RECOVERY_ENABLED, false); }
+
+    // --- SECURITY COUNTERS ---
     public void incrementFailedAttempts() {
         int current = getFailedAttempts();
         sharedPreferences.edit().putInt(KEY_FAILED_ATTEMPTS, current + 1).apply();
@@ -62,8 +86,15 @@ public class AppPreferences {
     }
 
     public long getLockTimeout() {
-        // Default to "Immediate" (0) or 5000ms? Let's default to Immediate for security.
         return sharedPreferences.getLong(KEY_LOCK_TIMEOUT, 0);
+    }
+
+    public void setLastActiveTimestamp(long timestamp) {
+        sharedPreferences.edit().putLong(KEY_LAST_ACTIVE, timestamp).apply();
+    }
+
+    public long getLastActiveTimestamp() {
+        return sharedPreferences.getLong(KEY_LAST_ACTIVE, 0);
     }
 
     public void clearAllData() {

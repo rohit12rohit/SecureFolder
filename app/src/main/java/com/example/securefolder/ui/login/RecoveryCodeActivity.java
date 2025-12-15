@@ -12,6 +12,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import com.example.securefolder.MainActivity;
 import com.example.securefolder.R;
 import com.example.securefolder.utils.AppPreferences;
+import com.example.securefolder.utils.KeyManager;
 import com.example.securefolder.utils.SecurityUtils;
 import java.io.File;
 import java.io.FileWriter;
@@ -30,9 +31,18 @@ public class RecoveryCodeActivity extends AppCompatActivity {
         Button btnSave = findViewById(R.id.btnSaveFile);
         Button btnFinish = findViewById(R.id.btnFinish);
 
-        // Generate Code
+        // 1. Generate Code
         recoveryCode = SecurityUtils.generateRecoveryCode();
         tvCode.setText(recoveryCode);
+
+        // 2. CRITICAL: Enable Recovery Mode in KeyManager
+        // This saves a copy of the Master Key encrypted with this specific Recovery Code.
+        boolean recoverySetup = KeyManager.enableRecovery(this, recoveryCode);
+        if (!recoverySetup) {
+            Toast.makeText(this, "Error setting up recovery. Please restart.", Toast.LENGTH_LONG).show();
+            finish();
+            return;
+        }
 
         // Copy Logic
         btnCopy.setOnClickListener(v -> {
@@ -47,10 +57,7 @@ public class RecoveryCodeActivity extends AppCompatActivity {
 
         // Finish Logic
         btnFinish.setOnClickListener(v -> {
-            // Mark setup as done
             new AppPreferences(this).setSetupDone(true);
-
-            // Go to Main (which will route to Login)
             Intent intent = new Intent(this, MainActivity.class);
             intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK | Intent.FLAG_ACTIVITY_NEW_TASK);
             startActivity(intent);
@@ -59,11 +66,10 @@ public class RecoveryCodeActivity extends AppCompatActivity {
 
     private void saveCodeToFile() {
         try {
-            // Save to app-specific external storage (does not require special permissions)
             File file = new File(getExternalFilesDir(null), "SecureFolder-Recovery.txt");
             FileWriter writer = new FileWriter(file);
             writer.write("IMPORTANT: SECURE FOLDER RECOVERY CODE\n");
-            writer.write("Keep this safe. If you lose your password, you lose your data.\n\n");
+            writer.write("Use this code if you forget your password. Do not lose it.\n\n");
             writer.write("Code: " + recoveryCode);
             writer.flush();
             writer.close();

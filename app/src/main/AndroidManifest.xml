@@ -6,6 +6,14 @@
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+
+    <uses-feature
+        android:name="android.hardware.camera"
+        android:required="false" />
+
     <application
         android:name=".SecureApplication"
         android:allowBackup="false"
@@ -30,6 +38,7 @@
         <activity android:name=".ui.login.LoginActivity" />
         <activity android:name=".ui.login.RecoveryCodeActivity" />
         <activity android:name=".MainActivity" />
+
         <activity android:name=".ui.modules.PhotosActivity" />
         <activity android:name=".ui.modules.VideosActivity" />
         <activity android:name=".ui.modules.DocumentsActivity" />
@@ -37,6 +46,7 @@
         <activity android:name=".ui.modules.PasswordsActivity" />
         <activity android:name=".ui.modules.TrashActivity" />
         <activity android:name=".ui.modules.SettingsActivity" />
+
         <activity android:name=".ui.modules.PhotoViewerActivity" />
         <activity android:name=".ui.modules.VideoViewerActivity"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden" />
