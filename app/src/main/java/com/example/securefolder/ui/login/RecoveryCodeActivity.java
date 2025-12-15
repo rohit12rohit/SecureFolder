@@ -35,13 +35,13 @@ public class RecoveryCodeActivity extends AppCompatActivity {
         recoveryCode = SecurityUtils.generateRecoveryCode();
         tvCode.setText(recoveryCode);
 
-        // 2. CRITICAL: Enable Recovery Mode in KeyManager
-        // This saves a copy of the Master Key encrypted with this specific Recovery Code.
-        boolean recoverySetup = KeyManager.enableRecovery(this, recoveryCode);
-        if (!recoverySetup) {
-            Toast.makeText(this, "Error setting up recovery. Please restart.", Toast.LENGTH_LONG).show();
-            finish();
-            return;
+        // 2. SECURE THE VAULT WITH THIS CODE (Crucial Fix)
+        // Since setupVault() was just called in SignupActivity, KeyManager.cachedMasterKey is populated.
+        boolean recoverySetupSuccess = KeyManager.setupRecovery(this, recoveryCode);
+
+        if (!recoverySetupSuccess) {
+            Toast.makeText(this, "CRITICAL ERROR: Failed to setup recovery.", Toast.LENGTH_LONG).show();
+            // In a real app, you might want to abort or retry
         }
 
         // Copy Logic
@@ -69,7 +69,7 @@ public class RecoveryCodeActivity extends AppCompatActivity {
             File file = new File(getExternalFilesDir(null), "SecureFolder-Recovery.txt");
             FileWriter writer = new FileWriter(file);
             writer.write("IMPORTANT: SECURE FOLDER RECOVERY CODE\n");
-            writer.write("Use this code if you forget your password. Do not lose it.\n\n");
+            writer.write("Keep this safe. If you lose your password, you lose your data.\n\n");
             writer.write("Code: " + recoveryCode);
             writer.flush();
             writer.close();
