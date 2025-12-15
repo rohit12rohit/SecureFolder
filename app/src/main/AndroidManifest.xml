@@ -48,5 +48,4 @@
         <activity android:name=".ui.modules.PasswordEditorActivity" />
 
     </application>
-
 </manifest>

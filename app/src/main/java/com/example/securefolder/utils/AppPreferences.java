@@ -12,15 +12,15 @@ public class AppPreferences {
     private static final String KEY_FAILED_ATTEMPTS = "failed_attempts";
     private static final String KEY_LOCK_TIMEOUT = "lock_timeout_ms";
 
-    // KEK Architecture (Primary Password)
+    // KEK Architecture (Primary)
     private static final String KEY_SALT = "auth_salt";
     private static final String KEY_MASTER_BLOB = "master_key_blob";
     private static final String KEY_MASTER_IV = "master_key_iv";
 
-    // KEK Architecture (Recovery Code)
+    // KEK Architecture (Recovery) - NEW
+    private static final String KEY_RECOVERY_SALT = "recovery_salt";
     private static final String KEY_RECOVERY_BLOB = "recovery_key_blob";
     private static final String KEY_RECOVERY_IV = "recovery_key_iv";
-    private static final String KEY_RECOVERY_SALT = "recovery_salt";
 
     private final SharedPreferences sharedPreferences;
 
@@ -44,6 +44,7 @@ public class AppPreferences {
                 .apply();
     }
 
+    // NEW: Save Recovery Data
     public void saveRecoveryData(String salt, String encryptedKeyBlob, String iv) {
         sharedPreferences.edit()
                 .putString(KEY_RECOVERY_SALT, salt)
@@ -52,12 +53,11 @@ public class AppPreferences {
                 .apply();
     }
 
-    // Getters for Primary Auth
     public String getSalt() { return sharedPreferences.getString(KEY_SALT, null); }
     public String getMasterKeyBlob() { return sharedPreferences.getString(KEY_MASTER_BLOB, null); }
     public String getMasterKeyIV() { return sharedPreferences.getString(KEY_MASTER_IV, null); }
 
-    // Getters for Recovery Auth
+    // NEW: Get Recovery Data
     public String getRecoverySalt() { return sharedPreferences.getString(KEY_RECOVERY_SALT, null); }
     public String getRecoveryBlob() { return sharedPreferences.getString(KEY_RECOVERY_BLOB, null); }
     public String getRecoveryIV() { return sharedPreferences.getString(KEY_RECOVERY_IV, null); }
