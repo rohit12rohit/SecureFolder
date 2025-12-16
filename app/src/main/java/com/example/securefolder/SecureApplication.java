@@ -13,7 +13,6 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import com.example.securefolder.ui.login.LoginActivity;
 import com.example.securefolder.utils.AppPreferences;
-import com.example.securefolder.utils.KeyManager;
 
 public class SecureApplication extends Application implements Application.ActivityLifecycleCallbacks, SensorEventListener {
 
@@ -39,6 +38,7 @@ public class SecureApplication extends Application implements Application.Activi
     @Override
     public void onActivityStarted(@NonNull Activity activity) {
         if (++activityReferences == 1 && !isActivityChangingConfigurations) {
+            // App entered foreground
             checkLockout(activity);
         }
     }
@@ -47,35 +47,30 @@ public class SecureApplication extends Application implements Application.Activi
     public void onActivityStopped(@NonNull Activity activity) {
         isActivityChangingConfigurations = activity.isChangingConfigurations();
         if (--activityReferences == 0 && !isActivityChangingConfigurations) {
+            // App entered background
             lastBackgroundTimestamp = System.currentTimeMillis();
-            // Optional: Immediate lock on background?
-            // KeyManager.clearKey();
         }
     }
 
     private void checkLockout(Activity activity) {
         if (activity instanceof LoginActivity) return;
 
-        AppPreferences prefs = new AppPreferences(this);
-        long timeout = prefs.getLockTimeout();
+        // If app was in background for more than 30 seconds (example), lock it.
+        // Or if you want immediate lock, just remove the time check.
         long diff = System.currentTimeMillis() - lastBackgroundTimestamp;
-
-        if (lastBackgroundTimestamp > 0 && diff >= timeout) {
+        if (lastBackgroundTimestamp > 0 && diff > 1000) { // 1 second buffer
             forceLock(activity);
         }
     }
 
     public void forceLock(Activity activity) {
-        // FIX: WIPE KEY FROM MEMORY
-        KeyManager.clearKey();
-
         Intent intent = new Intent(activity, LoginActivity.class);
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
         startActivity(intent);
-        activity.finish();
+        if (activity != null) activity.finish();
     }
 
-    // --- PANIC SWITCH ---
+    // --- PANIC SWITCH (Face Down Lock) ---
 
     @Override
     public void onActivityResumed(@NonNull Activity activity) {
@@ -95,11 +90,10 @@ public class SecureApplication extends Application implements Application.Activi
     public void onSensorChanged(SensorEvent event) {
         if (event.sensor.getType() == Sensor.TYPE_ACCELEROMETER) {
             float z = event.values[2];
+            // If phone is face down (Z axis < -9)
             if (z < -9.0 && isFaceUp) {
                 isFaceUp = false;
-                // PANIC: Lock and Wipe Key
-                KeyManager.clearKey();
-
+                // Trigger Lock
                 Intent intent = new Intent(this, LoginActivity.class);
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
                 startActivity(intent);

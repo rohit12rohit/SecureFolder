@@ -1,111 +1,94 @@
 package com.example.securefolder.utils;
 
-import android.util.Base64;
-import java.io.ByteArrayOutputStream;
+import android.security.keystore.KeyGenParameterSpec;
+import android.security.keystore.KeyProperties;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.nio.charset.StandardCharsets;
+import java.security.KeyStore;
 import javax.crypto.Cipher;
-import javax.crypto.CipherInputStream;
-import javax.crypto.CipherOutputStream;
+import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.GCMParameterSpec;
 
 /**
- * CryptoManager
- * Handles AES-GCM Encryption for Files AND Strings.
+ * Handles Hardware-Backed Encryption.
+ * No hardcoded keys. No SharedPreferences for keys.
+ * Uses Android Keystore System.
  */
 public class CryptoManager {
 
-    private static final String ALGORITHM = "AES/GCM/NoPadding";
-    private static final int IV_LENGTH = 12; // Recommended for GCM
-    private static final int TAG_LENGTH = 128;
+    private static final String KEY_ALIAS = "SecureVaultMasterKey";
+    private static final String ANDROID_KEYSTORE = "AndroidKeyStore";
+    private static final String ALGORITHM = KeyProperties.KEY_ALGORITHM_AES;
+    private static final String BLOCK_MODE = KeyProperties.BLOCK_MODE_GCM;
+    private static final String PADDING = KeyProperties.ENCRYPTION_PADDING_NONE;
+    private static final String TRANSFORMATION = ALGORITHM + "/" + BLOCK_MODE + "/" + PADDING;
 
-    /**
-     * Encrypts a String and returns a Base64 encoded string (IV + EncryptedData).
-     */
-    public static String encryptString(String plaintext) {
-        if (plaintext == null || plaintext.isEmpty()) return "";
+    private KeyStore keyStore;
+
+    public CryptoManager() {
         try {
-            SecretKey key = KeyManager.getMasterKey();
-            if (key == null) return null; // Key lost, cannot encrypt
+            keyStore = KeyStore.getInstance(ANDROID_KEYSTORE);
+            keyStore.load(null);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
 
-            Cipher cipher = Cipher.getInstance(ALGORITHM);
-            cipher.init(Cipher.ENCRYPT_MODE, key);
-            byte[] iv = cipher.getIV();
+    // --- KEY MANAGEMENT ---
 
-            byte[] inputBytes = plaintext.getBytes(StandardCharsets.UTF_8);
-            byte[] encryptedBytes = cipher.doFinal(inputBytes);
-
-            // Combine IV + Encrypted Bytes
-            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-            outputStream.write(iv);
-            outputStream.write(encryptedBytes);
-
-            return Base64.encodeToString(outputStream.toByteArray(), Base64.NO_WRAP);
+    private SecretKey getSecretKey() {
+        try {
+            // Check if key exists
+            if (!keyStore.containsAlias(KEY_ALIAS)) {
+                generateKey();
+            }
+            return ((KeyStore.SecretKeyEntry) keyStore.getEntry(KEY_ALIAS, null)).getSecretKey();
         } catch (Exception e) {
             e.printStackTrace();
             return null;
         }
     }
 
-    /**
-     * Decrypts a Base64 encoded string (IV + EncryptedData) back to Plaintext.
-     */
-    public static String decryptString(String encryptedBase64) {
-        if (encryptedBase64 == null || encryptedBase64.isEmpty()) return "";
+    private void generateKey() {
         try {
-            SecretKey key = KeyManager.getMasterKey();
-            if (key == null) return null; // Key lost
-
-            byte[] decodedBytes = Base64.decode(encryptedBase64, Base64.NO_WRAP);
-
-            // Extract IV
-            if (decodedBytes.length < IV_LENGTH) return ""; // Invalid data
-            byte[] iv = new byte[IV_LENGTH];
-            System.arraycopy(decodedBytes, 0, iv, 0, IV_LENGTH);
-
-            // Extract CipherText
-            int encryptedSize = decodedBytes.length - IV_LENGTH;
-            byte[] encryptedBytes = new byte[encryptedSize];
-            System.arraycopy(decodedBytes, IV_LENGTH, encryptedBytes, 0, encryptedSize);
-
-            // Decrypt
-            Cipher cipher = Cipher.getInstance(ALGORITHM);
-            GCMParameterSpec spec = new GCMParameterSpec(TAG_LENGTH, iv);
-            cipher.init(Cipher.DECRYPT_MODE, key, spec);
-
-            byte[] decryptedBytes = cipher.doFinal(encryptedBytes);
-            return new String(decryptedBytes, StandardCharsets.UTF_8);
-
+            KeyGenerator keyGenerator = KeyGenerator.getInstance(ALGORITHM, ANDROID_KEYSTORE);
+            KeyGenParameterSpec keyGenParameterSpec = new KeyGenParameterSpec.Builder(
+                    KEY_ALIAS,
+                    KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT)
+                    .setBlockModes(BLOCK_MODE)
+                    .setEncryptionPaddings(PADDING)
+                    .setRandomizedEncryptionRequired(true) // Requires IV for every encryption
+                    .build();
+            keyGenerator.init(keyGenParameterSpec);
+            keyGenerator.generateKey();
         } catch (Exception e) {
             e.printStackTrace();
-            return "[Decryption Failed]";
         }
     }
 
+    // --- ENCRYPTION / DECRYPTION ---
+
     /**
-     * Encrypts data from inputStream and writes to outputStream.
-     * Format: [IV (12 bytes)] + [Encrypted Data]
+     * Encrypts stream. Prepend IV to the output stream.
      */
-    public static boolean encrypt(SecretKey key, InputStream inputStream, OutputStream outputStream) {
+    public boolean encrypt(InputStream inputStream, OutputStream outputStream) {
         try {
-            Cipher cipher = Cipher.getInstance(ALGORITHM);
-            cipher.init(Cipher.ENCRYPT_MODE, key);
+            Cipher cipher = Cipher.getInstance(TRANSFORMATION);
+            cipher.init(Cipher.ENCRYPT_MODE, getSecretKey());
 
             byte[] iv = cipher.getIV();
-            outputStream.write(iv);
+            outputStream.write(iv); // Save IV at the start of file
 
-            CipherOutputStream cipherOutputStream = new CipherOutputStream(outputStream, cipher);
-            byte[] buffer = new byte[1024];
+            byte[] buffer = new byte[1024 * 4]; // 4KB buffer
             int bytesRead;
             while ((bytesRead = inputStream.read(buffer)) != -1) {
-                cipherOutputStream.write(buffer, 0, bytesRead);
+                byte[] output = cipher.update(buffer, 0, bytesRead);
+                if (output != null) outputStream.write(output);
             }
+            byte[] finalBytes = cipher.doFinal();
+            if (finalBytes != null) outputStream.write(finalBytes);
 
-            cipherOutputStream.close();
-            inputStream.close();
-            outputStream.close();
             return true;
         } catch (Exception e) {
             e.printStackTrace();
@@ -114,28 +97,28 @@ public class CryptoManager {
     }
 
     /**
-     * Decrypts data from inputStream and writes to outputStream.
+     * Decrypts stream. Reads IV from start of input stream.
      */
-    public static boolean decrypt(SecretKey key, InputStream inputStream, OutputStream outputStream) {
+    public boolean decrypt(InputStream inputStream, OutputStream outputStream) {
         try {
-            byte[] iv = new byte[IV_LENGTH];
+            // Read IV (GCM standard is 12 bytes)
+            byte[] iv = new byte[12];
             int ivRead = inputStream.read(iv);
-            if (ivRead != IV_LENGTH) return false;
+            if (ivRead != 12) return false;
 
-            Cipher cipher = Cipher.getInstance(ALGORITHM);
-            GCMParameterSpec spec = new GCMParameterSpec(TAG_LENGTH, iv);
-            cipher.init(Cipher.DECRYPT_MODE, key, spec);
+            Cipher cipher = Cipher.getInstance(TRANSFORMATION);
+            GCMParameterSpec spec = new GCMParameterSpec(128, iv);
+            cipher.init(Cipher.DECRYPT_MODE, getSecretKey(), spec);
 
-            CipherInputStream cipherInputStream = new CipherInputStream(inputStream, cipher);
-            byte[] buffer = new byte[1024];
+            byte[] buffer = new byte[1024 * 4];
             int bytesRead;
-            while ((bytesRead = cipherInputStream.read(buffer)) != -1) {
-                outputStream.write(buffer, 0, bytesRead);
+            while ((bytesRead = inputStream.read(buffer)) != -1) {
+                byte[] output = cipher.update(buffer, 0, bytesRead);
+                if (output != null) outputStream.write(output);
             }
+            byte[] finalBytes = cipher.doFinal();
+            if (finalBytes != null) outputStream.write(finalBytes);
 
-            cipherInputStream.close();
-            inputStream.close();
-            outputStream.close();
             return true;
         } catch (Exception e) {
             e.printStackTrace();
